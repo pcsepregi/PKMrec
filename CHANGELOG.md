@@ -2,6 +2,10 @@
 
 Release notes shown in the app's update dialog are taken from the matching section below.
 
+## 0.5.6
+
+- Fixes Clawitzer MEG 141/132 and similar full-art cards: the italic "1/" that the text recognizer reads as "V" ("14V132") is now understood as "141/132".
+
 ## 0.5.5
 
 - Light-on-dark card numbers (white outlined digits on full-art cards, e.g. Clawitzer MEG 141/132) are re-read from an enlarged, inverted high-contrast copy when the first reading fails.
