@@ -2,6 +2,13 @@
 
 Release notes shown in the app's update dialog are taken from the matching section below.
 
+## 0.3.1
+
+- Better set code reading (also when the code is glued to "EN" or in a separate text block).
+- Better card name reading.
+- New "Nyers szöveg" button on the camera screen: shows what the text recognizer sees and can copy it.
+- Smaller download (64-bit ARM only).
+
 ## 0.3.0
 
 - "Felismerés" opens the camera and reads the set code and card number from the bottom of the card.
