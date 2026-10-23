@@ -14,6 +14,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.core.resolutionselector.ResolutionSelector
@@ -22,6 +23,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -58,6 +60,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
@@ -76,6 +79,7 @@ import me.csepregi.pkmrec.recognition.CardTextAnalyzer
 import me.csepregi.pkmrec.recognition.OcrLine
 import me.csepregi.pkmrec.recognition.ReadingStabilizer
 import java.util.concurrent.Executors
+import kotlin.math.roundToInt
 
 /** Card proportions (63 × 88 mm). */
 private const val CARD_ASPECT = 63f / 88f
@@ -170,7 +174,10 @@ private fun ScannerContent(onBack: () -> Unit) {
                 .build()
                 .also { it.setAnalyzer(executor, analyzer) }
             p.unbindAll()
-            camera = p.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+            val cam = p.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+            camera = cam
+            reduceExposure(cam)
+            previewView.post { focusOnBottomStrip(cam, previewView) }
         }, ContextCompat.getMainExecutor(context))
 
         onDispose {
@@ -182,6 +189,15 @@ private fun ScannerContent(onBack: () -> Unit) {
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+
+        // Transparent layer above the preview: tap to focus / meter on a spot (e.g. a part without glare).
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(camera) {
+                    detectTapGestures { offset -> camera?.let { focusAt(it, previewView, offset.x, offset.y) } }
+                },
+        )
 
         // Framing guide
         Box(
@@ -240,6 +256,11 @@ private fun ScannerContent(onBack: () -> Unit) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(stringResource(R.string.camera_hint), style = MaterialTheme.typography.bodyMedium)
                         Text(
+                            stringResource(R.string.camera_glare_tip),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
                             text = live?.let { stringResource(R.string.camera_reading, it.display) }
                                 ?: stringResource(R.string.camera_searching),
                             style = MaterialTheme.typography.titleMedium,
@@ -276,6 +297,33 @@ private fun ScannerContent(onBack: () -> Unit) {
     }
 }
 
+/** About -0.7 EV: keeps text under sleeve glare from burning out to white. */
+private fun reduceExposure(camera: Camera) {
+    val exposure = camera.cameraInfo.exposureState
+    if (!exposure.isExposureCompensationSupported) return
+    val step = exposure.exposureCompensationStep.toFloat()
+    if (step <= 0f) return
+    val range = exposure.exposureCompensationRange
+    val index = (-0.7f / step).roundToInt().coerceIn(range.lower, range.upper)
+    camera.cameraControl.setExposureCompensationIndex(index)
+}
+
+/** Focuses and meters on the bottom strip of the framing guide, where the small set code and number are. */
+private fun focusOnBottomStrip(camera: Camera, view: PreviewView) {
+    if (view.width == 0 || view.height == 0) return
+    val guideHeight = view.width * 0.82f / CARD_ASPECT
+    val y = (view.height / 2f + guideHeight * 0.42f).coerceAtMost(view.height - 1f)
+    focusAt(camera, view, view.width / 2f, y)
+}
+
+private fun focusAt(camera: Camera, view: PreviewView, x: Float, y: Float) {
+    val point = view.meteringPointFactory.createPoint(x, y)
+    val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE)
+        .disableAutoCancel()
+        .build()
+    camera.cameraControl.startFocusAndMetering(action)
+}
+
 /** Debug view: what the text recognizer currently sees, so recognition problems can be reported. */
 @Composable
 private fun RawTextPanel(lines: List<OcrLine>, reading: CardReading?, modifier: Modifier = Modifier) {
@@ -284,7 +332,7 @@ private fun RawTextPanel(lines: List<OcrLine>, reading: CardReading?, modifier: 
     val report = buildString {
         appendLine("PKMrec ${BuildConfig.VERSION_NAME} OCR")
         appendLine("reading: " + (reading?.let { "${it.display} | mark=${it.regulationMark} | name=${it.name}" } ?: "-"))
-        sorted.forEach { appendLine("[${it.top}-${it.bottom}] ${it.text}") }
+        sorted.forEach { appendLine((if (it.fromStrip) "*" else " ") + "[${it.top}-${it.bottom}] ${it.text}") }
     }
     Card(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp)) {
@@ -307,7 +355,7 @@ private fun RawTextPanel(lines: List<OcrLine>, reading: CardReading?, modifier: 
             ) {
                 sorted.forEach { line ->
                     Text(
-                        "${line.top}: ${line.text}",
+                        (if (line.fromStrip) "*" else " ") + "${line.top}: ${line.text}",
                         style = MaterialTheme.typography.bodySmall,
                         fontFamily = FontFamily.Monospace,
                     )

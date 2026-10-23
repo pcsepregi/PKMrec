@@ -1,48 +1,69 @@
 package me.csepregi.pkmrec.recognition
 
 /**
- * Accepts a reading only after the same set code + number was read in [required]
- * consecutive frames that contained a reading. A few frames without any reading
- * (motion blur, glare) do not reset the count; [maxMisses] of them in a row do.
+ * Combines readings from recent camera frames by voting per field, so glare that hides
+ * the number in one frame and the set code in another still gives a complete result.
+ *
+ * - The number (with total) is confirmed once it won [numberVotes] votes in the window.
+ * - The set code is then the code most often read together with that number, if it got
+ *   [codeVotes] votes; if that number was read [noCodeAfter] times without any code
+ *   reaching that, the card is taken to have no set code (older cards).
+ * - Frames without any reading also enter the window, so old votes age out when the
+ *   card is moved away.
  */
 class ReadingStabilizer(
-    private val required: Int = 3,
-    private val maxMisses: Int = 6,
+    private val window: Int = 15,
+    private val numberVotes: Int = 3,
+    private val codeVotes: Int = 2,
+    private val noCodeAfter: Int = 6,
 ) {
-    private var lastKey: String? = null
-    private var count = 0
-    private var misses = 0
-    private var bestName: String? = null
+    private val recent = ArrayDeque<CardReading?>()
 
-    /** The reading currently being confirmed (for live display), or null. */
+    /** Best current guess (for live display), or null. */
     var current: CardReading? = null
         private set
 
     /** Feeds one frame's reading; returns the confirmed reading once it is stable, otherwise null. */
     fun offer(reading: CardReading?): CardReading? {
-        if (reading == null) {
-            misses++
-            if (misses >= maxMisses) reset()
+        recent.addLast(reading)
+        while (recent.size > window) recent.removeFirst()
+
+        val readings = recent.filterNotNull()
+        if (readings.isEmpty()) {
+            current = null
             return null
         }
-        misses = 0
-        if (reading.key == lastKey) {
-            count++
+
+        // 1) number + total
+        val byNumber = readings.groupBy { it.number to it.total }
+        val (numberKey, sameNumber) = byNumber.maxBy { it.value.size }
+
+        // 2) set code read together with that number
+        val codes = sameNumber.mapNotNull { it.setCode }.groupingBy { it }.eachCount()
+        val bestCode = codes.maxByOrNull { it.value }
+        val codeDecided = (bestCode != null && bestCode.value >= codeVotes) || sameNumber.size >= noCodeAfter
+        val setCode = bestCode?.takeIf { it.value >= codeVotes }?.key ?: bestCode?.key
+
+        // 3) regulation mark and name: most frequent values
+        val mark = sameNumber.mapNotNull { it.regulationMark }.mostFrequent()
+        val name = sameNumber.mapNotNull { it.name }.mostFrequent()
+
+        val guess = CardReading(setCode, numberKey.first, numberKey.second, mark, name)
+        current = guess
+
+        val confirmed = sameNumber.size >= numberVotes && codeDecided
+        return if (confirmed) {
+            // Older card without set code: do not report a code read only once by mistake.
+            if (bestCode == null || bestCode.value < codeVotes) guess.copy(setCode = null) else guess
         } else {
-            lastKey = reading.key
-            count = 1
-            bestName = null
+            null
         }
-        if (reading.name != null) bestName = reading.name
-        current = reading.copy(name = bestName)
-        return if (count >= required) current else null
     }
 
     fun reset() {
-        lastKey = null
-        count = 0
-        misses = 0
-        bestName = null
+        recent.clear()
         current = null
     }
+
+    private fun <T> List<T>.mostFrequent(): T? = groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
 }

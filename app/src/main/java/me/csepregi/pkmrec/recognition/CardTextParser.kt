@@ -2,8 +2,18 @@ package me.csepregi.pkmrec.recognition
 
 import kotlin.math.abs
 
-/** One line of recognised text with its vertical position in the (upright) camera image. */
-data class OcrLine(val text: String, val top: Int, val bottom: Int) {
+/**
+ * One line of recognised text with its position in the (upright) camera image.
+ * [fromStrip] marks lines read from the enlarged crop of the card's bottom strip.
+ */
+data class OcrLine(
+    val text: String,
+    val top: Int,
+    val bottom: Int,
+    val left: Int = 0,
+    val right: Int = 0,
+    val fromStrip: Boolean = false,
+) {
     val height: Int get() = bottom - top
 }
 

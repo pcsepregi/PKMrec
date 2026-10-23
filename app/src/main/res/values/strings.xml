@@ -26,6 +26,7 @@
 
     <!-- Camera / recognition -->
     <string name="camera_hint">Tartsd a kártyát a keretben, hogy az alja jól olvasható legyen.</string>
+    <string name="camera_glare_tip">Csillog? Döntsd meg kicsit a telefont, a vakut hagyd kikapcsolva. Koppintással oda élesít, ahová koppintasz.</string>
     <string name="camera_searching">Keresem a kártya számát…</string>
     <string name="camera_reading">Olvasom: %1$s</string>
     <string name="camera_recognized">Felismert kártya</string>
@@ -36,7 +37,7 @@
     <string name="camera_torch_on">Vaku be</string>
     <string name="camera_torch_off">Vaku ki</string>
     <string name="camera_raw_text">Nyers szöveg</string>
-    <string name="camera_raw_text_title">Amit a felismerő lát (%1$d sor)</string>
+    <string name="camera_raw_text_title">Amit a felismerő lát (%1$d sor, * = kinagyított alsó sáv)</string>
     <string name="camera_raw_text_copy">Másolás</string>
     <string name="camera_raw_text_copied">Vágólapra másolva</string>
     <string name="manual_number">Sorszám (pl. 015/128)</string>
