@@ -35,6 +35,10 @@
     <string name="camera_manual_entry">Kézi bevitel</string>
     <string name="camera_torch_on">Vaku be</string>
     <string name="camera_torch_off">Vaku ki</string>
+    <string name="camera_raw_text">Nyers szöveg</string>
+    <string name="camera_raw_text_title">Amit a felismerő lát (%1$d sor)</string>
+    <string name="camera_raw_text_copy">Másolás</string>
+    <string name="camera_raw_text_copied">Vágólapra másolva</string>
     <string name="manual_number">Sorszám (pl. 015/128)</string>
     <string name="manual_set_code">Szettkód (nem kötelező, pl. PAL)</string>
     <string name="camera_permission_title">Kamera engedély szükséges</string>

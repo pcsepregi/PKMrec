@@ -27,6 +27,11 @@ android {
         versionName = appVersion
 
         buildConfigField("String", "GITHUB_REPO", "\"pcsepregi/PKMrec\"")
+
+        // Only 64-bit ARM phones (e.g. OnePlus 13); keeps the ML Kit native libraries small.
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
     }
 
     signingConfigs {

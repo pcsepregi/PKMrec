@@ -1,6 +1,10 @@
 package me.csepregi.pkmrec.ui
 
 import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -27,6 +31,10 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -53,6 +61,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.foundation.text.KeyboardOptions
@@ -60,9 +69,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import me.csepregi.pkmrec.BuildConfig
 import me.csepregi.pkmrec.R
 import me.csepregi.pkmrec.recognition.CardReading
 import me.csepregi.pkmrec.recognition.CardTextAnalyzer
+import me.csepregi.pkmrec.recognition.OcrLine
 import me.csepregi.pkmrec.recognition.ReadingStabilizer
 import java.util.concurrent.Executors
 
@@ -117,10 +128,13 @@ private fun ScannerContent(onBack: () -> Unit) {
     var camera by remember { mutableStateOf<Camera?>(null) }
     var torchOn by remember { mutableStateOf(false) }
     var showManual by remember { mutableStateOf(false) }
+    var showRaw by remember { mutableStateOf(false) }
+    var rawLines by remember { mutableStateOf<List<OcrLine>>(emptyList()) }
 
     val analyzer = remember {
-        CardTextAnalyzer { reading ->
+        CardTextAnalyzer { reading, lines ->
             if (confirmed != null) return@CardTextAnalyzer
+            rawLines = lines
             val stable = stabilizer.offer(reading)
             live = stabilizer.current
             if (stable != null) {
@@ -188,6 +202,8 @@ private fun ScannerContent(onBack: () -> Unit) {
         ) {
             FilledTonalButton(onClick = onBack) { Text("‹ " + stringResource(R.string.back)) }
             Spacer(Modifier.weight(1f))
+            FilledTonalButton(onClick = { showRaw = !showRaw }) { Text(stringResource(R.string.camera_raw_text)) }
+            Spacer(Modifier.width(8.dp))
             if (camera?.cameraInfo?.hasFlashUnit() == true) {
                 FilledTonalButton(onClick = {
                     torchOn = !torchOn
@@ -196,6 +212,17 @@ private fun ScannerContent(onBack: () -> Unit) {
                     Text(stringResource(if (torchOn) R.string.camera_torch_off else R.string.camera_torch_on))
                 }
             }
+        }
+
+        if (showRaw) {
+            RawTextPanel(
+                lines = rawLines,
+                reading = confirmed ?: live,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = 64.dp, start = 12.dp, end = 12.dp),
+            )
         }
 
         // Bottom area: live reading / confirmed result
@@ -246,6 +273,47 @@ private fun ScannerContent(onBack: () -> Unit) {
                 confirmed = reading
             },
         )
+    }
+}
+
+/** Debug view: what the text recognizer currently sees, so recognition problems can be reported. */
+@Composable
+private fun RawTextPanel(lines: List<OcrLine>, reading: CardReading?, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val sorted = lines.sortedBy { it.top }
+    val report = buildString {
+        appendLine("PKMrec ${BuildConfig.VERSION_NAME} OCR")
+        appendLine("reading: " + (reading?.let { "${it.display} | mark=${it.regulationMark} | name=${it.name}" } ?: "-"))
+        sorted.forEach { appendLine("[${it.top}-${it.bottom}] ${it.text}") }
+    }
+    Card(modifier = modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.camera_raw_text_title, sorted.size),
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    clipboard.setPrimaryClip(ClipData.newPlainText("PKMrec OCR", report))
+                    Toast.makeText(context, R.string.camera_raw_text_copied, Toast.LENGTH_SHORT).show()
+                }) { Text(stringResource(R.string.camera_raw_text_copy)) }
+            }
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 240.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                sorted.forEach { line ->
+                    Text(
+                        "${line.top}: ${line.text}",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                    )
+                }
+            }
+        }
     }
 }
 

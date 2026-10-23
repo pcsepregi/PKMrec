@@ -88,6 +88,47 @@ class CardTextParserTest {
     }
 
     @Test
+    fun `splits set code glued to the language marker`() {
+        val r = parse(line("G PALEN 123/193", 950))!!
+        assertEquals("PAL", r.setCode)
+        assertEquals('G', r.regulationMark)
+
+        val r2 = parse(line("J 30CEN", 948), line("015/128", 950))!!
+        assertEquals("30C", r2.setCode)
+    }
+
+    @Test
+    fun `finds set code in a separate block a bit higher or lower`() {
+        val r = parse(
+            line("Illus. 5ban Graphics", 905),
+            line("PAL EN", 930),
+            line("123/193", 952),
+        )!!
+        assertEquals("PAL", r.setCode)
+        assertEquals("123", r.number)
+    }
+
+    @Test
+    fun `finds set code after the number and ignores separator noise`() {
+        val r = parse(line("123/193 · PAL·EN", 950))!!
+        assertEquals("PAL", r.setCode)
+    }
+
+    @Test
+    fun `name is found relative to the card, not the camera frame`() {
+        // The card occupies only the middle of the frame: name at 30 %, bottom strip at 75 %.
+        val r = parse(
+            line("STAGE 1", 280, h = 15),
+            line("Charmeleon HP100", 300, h = 50),
+            line("Evolves from Charmander", 340, h = 12),
+            line("Combustion 50", 500),
+            line("H PAF EN 008/091", 750),
+        )!!
+        assertEquals("Charmeleon", r.name)
+        assertEquals("PAF", r.setCode)
+    }
+
+    @Test
     fun `returns null when no number is visible`() {
         assertNull(parse(line("Fuecoco ex", 60), line("Singe", 500)))
     }

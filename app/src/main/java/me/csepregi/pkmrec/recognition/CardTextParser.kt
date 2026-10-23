@@ -1,5 +1,7 @@
 package me.csepregi.pkmrec.recognition
 
+import kotlin.math.abs
+
 /** One line of recognised text with its vertical position in the (upright) camera image. */
 data class OcrLine(val text: String, val top: Int, val bottom: Int) {
     val height: Int get() = bottom - top
@@ -33,8 +35,9 @@ data class CardReading(
  * Finds the set code, card number and name in OCR output of an English Pokémon card.
  *
  * The bottom strip of a modern English card reads like `G PAL EN 123/193` (regulation mark,
- * set code, language, number/total). Promos read like `SVP EN 045`. Older cards only have
- * `123/193`.
+ * set code, language, number/total). OCR often glues or splits these ("PALEN", separate
+ * text blocks), so the set code is found via the "EN" language marker anywhere near the
+ * number. Promos read like `SVP EN 045`. Older cards only have `123/193`.
  */
 object CardTextParser {
 
@@ -45,41 +48,64 @@ object CardTextParser {
     private val GLUED_PROMO = Regex("""^(SWSH|SM|XY|BW|DP|HGSS)(\d{1,3})$""")
 
     private val SLASH_SPACING = Regex("""\s*/\s*""")
+    private val SEPARATORS = Regex("""[·•‧∙\-–—_.,:;|\[\](){}<>«»"'`]""")
+    private val GLUED_EN = Regex("""^([A-Z0-9]{2,4})EN$""")
     private val SET_CODE = Regex("""^[A-Z0-9]{2,4}$""")
-    private val NOT_SET_CODES = setOf("EN", "HP", "EX", "GX", "VMAX", "VSTAR", "TM")
+    private val NOT_SET_CODES = setOf("EN", "HP", "EX", "GX", "VMAX", "VSTAR", "TM", "ILLUS", "THE")
     private val REGULATION_MARK = Regex("""^[A-K]$""")
-    private val NAME_JUNK = Regex("""\s*(HP\s*\d+|\d+\s*HP|\d+)\s*$""", RegexOption.IGNORE_CASE)
+
+    private val NAME_TRAILING_JUNK = Regex("""\s*(HP\s*\d+.*|\d+\s*HP.*|\d+\s*)$""", RegexOption.IGNORE_CASE)
+    private val NAME_LEADING_JUNK = Regex("""^(BASIC|STAGE\s*[12]?|STAGE[12])\s+""", RegexOption.IGNORE_CASE)
+    private val NOT_NAMES = Regex("""^(BASIC|STAGE\s*\d?|EVOLVES\b.*|TRAINER|ITEM|SUPPORTER|STADIUM|POKÉMON TOOL|ENERGY|TERA)$""", RegexOption.IGNORE_CASE)
 
     fun parse(lines: List<OcrLine>, imageHeight: Int): CardReading? {
-        val candidates = lines.mapNotNull { line -> readNumberLine(line, lines)?.let { line to it } }
+        val tokenized = lines.map { it to tokenize(it.text) }
+        val candidates = tokenized.mapNotNull { (line, tokens) -> readNumber(line, tokens, tokenized)?.let { line to it } }
         if (candidates.isEmpty()) return null
 
-        // Prefer readings from the lower half of the image (the card's bottom strip), then those with a set code.
+        // Prefer readings from the lower part of the text area (the card's bottom strip), then those with a set code.
+        val textTop = lines.minOf { it.top }
+        val textBottom = lines.maxOf { it.bottom }
+        val middle = (textTop + textBottom) / 2
         val (_, reading) = candidates.maxBy { (line, r) ->
-            (if (line.top > imageHeight / 2) 2 else 0) + (if (r.setCode != null) 1 else 0)
+            (if (line.top > middle) 2 else 0) + (if (r.setCode != null) 1 else 0)
         }
-        return reading.copy(name = findName(lines, imageHeight))
+        return reading.copy(name = findName(lines))
     }
 
-    /** Tries to read a number (and set code / regulation mark) from one line. */
-    internal fun readNumberLine(line: OcrLine, allLines: List<OcrLine>): CardReading? {
-        val tokens = line.text.uppercase().replace(SLASH_SPACING, "/").split(Regex("\\s+")).filter { it.isNotBlank() }
+    /** Uppercases, removes separator noise, joins "123 / 193" and splits glued "PALEN" into "PAL EN". */
+    internal fun tokenize(text: String): List<String> =
+        text.uppercase()
+            .replace(SLASH_SPACING, "/")
+            .replace(SEPARATORS, " ")
+            .split(Regex("\\s+"))
+            .filter { it.isNotBlank() }
+            .flatMap { token ->
+                val glued = GLUED_EN.matchEntire(token)
+                if (glued != null && isSetCode(glued.groupValues[1])) listOf(glued.groupValues[1], "EN") else listOf(token)
+            }
 
+    private fun readNumber(
+        line: OcrLine,
+        tokens: List<String>,
+        allLines: List<Pair<OcrLine, List<String>>>,
+    ): CardReading? {
         // 1) number/total, e.g. 015/128, TG05/TG30
         for ((index, token) in tokens.withIndex()) {
             val slash = token.indexOf('/')
             if (slash <= 0 || slash == token.length - 1) continue
             val number = normalizeNumberPart(token.substring(0, slash)) ?: continue
             val total = normalizeNumberPart(token.substring(slash + 1)) ?: continue
-            if (total.filter { it.isDigit() }.length < 2) continue
-            val before = tokens.subList(0, index)
-            val (setCode, mark) = setCodeAndMark(before) ?: setCodeFromNeighbours(line, allLines) ?: (null to null)
-            return CardReading(setCode, number, total, mark)
+            if (total.count { it.isDigit() } < 2) continue
+            val code = codeBeforeEn(tokens.subList(0, index))
+                ?: codeBeforeEn(tokens.subList(index + 1, tokens.size))
+                ?: nearestCodeBeforeEn(line, allLines)
+            return CardReading(code?.first, number, total, code?.second)
         }
 
         // 2) promo "SVP EN 045": set code, EN, number
         val enIndex = tokens.indexOf("EN")
-        if (enIndex in 1 until tokens.size - 1) {
+        if (enIndex >= 1 && enIndex < tokens.size - 1) {
             val number = normalizeNumberPart(tokens[enIndex + 1])
             val code = tokens[enIndex - 1]
             if (number != null && number.all { it.isDigit() } && isSetCode(code)) {
@@ -96,18 +122,18 @@ object CardTextParser {
     }
 
     /**
-     * Normalises a number part read by OCR: fixes O→0 and I/l/|→1 where digits are expected,
+     * Normalises a number part read by OCR: fixes O→0 and I/L/|→1 where digits are expected,
      * keeps real prefixes like "TG". Returns null if it does not look like a card number.
      */
     internal fun normalizeNumberPart(raw: String): String? {
-        val text = raw.trim().trim('.', ',', ':', ';')
+        val text = raw.trim().uppercase()
         if (text.isEmpty() || text.length > 5) return null
         val prefix = NUMBER_PREFIXES.filter { text.startsWith(it) && text.length > it.length }.maxByOrNull { it.length }
         val digitsPart = if (prefix != null) text.substring(prefix.length) else text
         val digits = digitsPart.map { c ->
             when (c) {
-                'O', 'o', 'Q', 'D' -> '0'
-                'I', 'l', '|', 'L' -> '1'
+                'O', 'Q', 'D' -> '0'
+                'I', 'L', '|' -> '1'
                 'S' -> '5'
                 'B' -> '8'
                 else -> c
@@ -120,32 +146,47 @@ object CardTextParser {
     private fun isSetCode(token: String) =
         SET_CODE.matches(token) && token.any { it.isLetter() } && token !in NOT_SET_CODES
 
-    /** From the tokens before the number: "[mark] CODE [EN]". */
-    private fun setCodeAndMark(before: List<String>): Pair<String, Char?>? {
-        val withoutEn = before.dropLastWhile { it == "EN" }
-        val code = withoutEn.lastOrNull()?.takeIf { isSetCode(it) } ?: return null
-        val mark = withoutEn.getOrNull(withoutEn.size - 2)?.takeIf { REGULATION_MARK.matches(it) }?.first()
+    /** In "[mark] CODE EN" returns CODE (and the mark); the code must be directly before "EN". */
+    private fun codeBeforeEn(tokens: List<String>): Pair<String, Char?>? {
+        val en = tokens.lastIndexOf("EN")
+        if (en < 1) return null
+        val code = tokens[en - 1].takeIf { isSetCode(it) } ?: return null
+        val mark = tokens.getOrNull(en - 2)?.takeIf { REGULATION_MARK.matches(it) }?.first()
         return code to mark
     }
 
-    /** OCR sometimes splits "PAL EN" and "123/193" into separate lines at the same height. */
-    private fun setCodeFromNeighbours(line: OcrLine, allLines: List<OcrLine>): Pair<String, Char?>? {
-        val tolerance = (line.height * 0.6).toInt().coerceAtLeast(4)
-        return allLines.asSequence()
-            .filter { it !== line && kotlin.math.abs(it.top - line.top) <= tolerance }
-            .mapNotNull { other ->
-                val tokens = other.text.uppercase().split(Regex("\\s+")).filter { it.isNotBlank() }
-                if (tokens.lastOrNull() == "EN" || tokens.contains("EN")) setCodeAndMark(tokens.takeWhile { it != "EN" } + "EN") else null
-            }
-            .firstOrNull()
+    /** OCR often puts "G PAL EN" in a separate text block; take the "CODE EN" closest to the number line. */
+    private fun nearestCodeBeforeEn(
+        line: OcrLine,
+        allLines: List<Pair<OcrLine, List<String>>>,
+    ): Pair<String, Char?>? {
+        val maxDistance = (line.height * 3).coerceAtLeast(30)
+        return allLines
+            .filter { (other, _) -> other !== line && abs(other.top - line.top) <= maxDistance }
+            .mapNotNull { (other, tokens) -> codeBeforeEn(tokens)?.let { abs(other.top - line.top) to it } }
+            .minByOrNull { it.first }
+            ?.second
     }
 
-    /** The card name is the tallest line with letters in the top part of the image. */
-    internal fun findName(lines: List<OcrLine>, imageHeight: Int): String? =
-        lines.asSequence()
-            .filter { it.top < imageHeight * 0.35 }
-            .map { it to it.text.replace(NAME_JUNK, "").trim() }
-            .filter { (_, text) -> text.count { it.isLetter() } >= 3 && !text.contains('/') }
+    /** The card name is the tallest mostly-letters line in the top part of the card's text area. */
+    internal fun findName(lines: List<OcrLine>): String? {
+        if (lines.isEmpty()) return null
+        val top = lines.minOf { it.top }
+        val bottom = lines.maxOf { it.bottom }
+        val limit = top + (bottom - top) * 0.25
+        return lines.asSequence()
+            .filter { it.top <= limit }
+            .map { it to cleanName(it.text) }
+            .filter { (_, text) ->
+                text.count { it.isLetter() } >= 3 && !text.contains('/') && !NOT_NAMES.matches(text)
+            }
             .maxByOrNull { (line, _) -> line.height }
             ?.second
+    }
+
+    private fun cleanName(text: String): String =
+        text.trim()
+            .replace(NAME_LEADING_JUNK, "")
+            .replace(NAME_TRAILING_JUNK, "")
+            .trim()
 }
