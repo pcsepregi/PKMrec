@@ -24,6 +24,24 @@
     <string name="retry">Újra</string>
     <string name="settings_account">TCG Collector fiók</string>
 
+    <!-- Camera / recognition -->
+    <string name="camera_hint">Tartsd a kártyát a keretben, hogy az alja jól olvasható legyen.</string>
+    <string name="camera_searching">Keresem a kártya számát…</string>
+    <string name="camera_reading">Olvasom: %1$s</string>
+    <string name="camera_recognized">Felismert kártya</string>
+    <string name="camera_no_set_code">Szettkódot nem láttam a kártyán (régebbi kártya?). A keresésnél a név is segít.</string>
+    <string name="camera_lookup_next_version">A TCG Collectoron való keresés a következő verzióban jön.</string>
+    <string name="camera_rescan">Új szkennelés</string>
+    <string name="camera_manual_entry">Kézi bevitel</string>
+    <string name="camera_torch_on">Vaku be</string>
+    <string name="camera_torch_off">Vaku ki</string>
+    <string name="manual_number">Sorszám (pl. 015/128)</string>
+    <string name="manual_set_code">Szettkód (nem kötelező, pl. PAL)</string>
+    <string name="camera_permission_title">Kamera engedély szükséges</string>
+    <string name="camera_permission_text">A kártya felismeréséhez az appnak hozzá kell férnie a kamerához. A képek a telefonon maradnak, sehova nem töltődnek fel.</string>
+    <string name="camera_permission_allow">Engedélyezés</string>
+    <string name="camera_permission_settings">Beállítások megnyitása</string>
+
     <!-- Settings -->
     <string name="back">Vissza</string>
     <string name="settings_version">Verzió</string>

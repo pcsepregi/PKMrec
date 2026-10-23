@@ -11,6 +11,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import me.csepregi.pkmrec.tcg.TcgSession
+import me.csepregi.pkmrec.ui.CameraScreen
 import me.csepregi.pkmrec.ui.HomeScreen
 import me.csepregi.pkmrec.ui.LoginScreen
 import me.csepregi.pkmrec.ui.PkmrecTheme
@@ -33,7 +34,11 @@ class MainActivity : ComponentActivity() {
                             HomeScreen(
                                 onOpenSettings = { nav.navigate(Routes.SETTINGS) },
                                 onLogin = { nav.navigate(Routes.LOGIN) },
+                                onRecognize = { nav.navigate(Routes.CAMERA) },
                             )
+                        }
+                        composable(Routes.CAMERA) {
+                            CameraScreen(onBack = { nav.popBackStack() })
                         }
                         composable(Routes.SETTINGS) {
                             SettingsScreen(
@@ -67,4 +72,5 @@ object Routes {
     const val HOME = "home"
     const val SETTINGS = "settings"
     const val LOGIN = "login"
+    const val CAMERA = "camera"
 }

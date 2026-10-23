@@ -39,7 +39,7 @@ private val features = listOf(
 )
 
 @Composable
-fun HomeScreen(onOpenSettings: () -> Unit, onLogin: () -> Unit) {
+fun HomeScreen(onOpenSettings: () -> Unit, onLogin: () -> Unit, onRecognize: () -> Unit) {
     val session by TcgSession.state.collectAsState()
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -84,8 +84,7 @@ fun HomeScreen(onOpenSettings: () -> Unit, onLogin: () -> Unit) {
                         if (session is SessionState.LoggedOut) {
                             onLogin()
                         } else {
-                            // Milestone 3 opens the camera here.
-                            scope.launch { snackbar.showSnackbar(comingSoon) }
+                            onRecognize()
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
