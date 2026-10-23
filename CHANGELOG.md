@@ -2,6 +2,13 @@
 
 Release notes shown in the app's update dialog are taken from the matching section below.
 
+## 0.5.1
+
+- Faster recognition: the second, enlarged reading only runs when the whole card is in view.
+- Works with a close-up of just the card's bottom-left corner (set code and number).
+- Fewer misreads: a number is only accepted with a clear majority of the camera frames.
+- 1x/2x zoom button for sharp close-ups.
+
 ## 0.5.0
 
 - The result shows which card of the same Pokémon is in your "Pokedex" list (image, set, number), or that there is none yet.
