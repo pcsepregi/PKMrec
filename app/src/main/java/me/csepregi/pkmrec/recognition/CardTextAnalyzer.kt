@@ -1,7 +1,11 @@
 package me.csepregi.pkmrec.recognition
 
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
 import android.graphics.Matrix
+import android.graphics.Paint
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import com.google.mlkit.vision.common.InputImage
@@ -66,15 +70,21 @@ class CardTextAnalyzer(
                 val fullLines = task.result.toLines()
                 val quick = CardTextParser.parse(fullLines, height)
 
-                // Close-up of the card corner: the number is already large, a second pass would only cost time.
-                val strip = if (isCloseUp(fullLines, height)) null else bottomStrip(fullLines, width, height)
-                if (strip == null) {
+                // Pass 2 region: the bottom strip when the whole card is in view; otherwise, when no valid
+                // number came out (e.g. white outlined digits on a dark full-art card), the area around
+                // number-like text. A close-up that already gave a reading needs no second pass.
+                val closeUp = isCloseUp(fullLines, height)
+                val region = when {
+                    closeUp && quick != null -> null
+                    closeUp -> numberRegion(fullLines, width, height)
+                    else -> bottomStrip(fullLines, width, height) ?: if (quick == null) numberRegion(fullLines, width, height) else null
+                }
+                if (region == null) {
                     image.close()
                     deliver(quick, fullLines)
                     return@addOnCompleteListener
                 }
 
-                // Pass 2: the card's bottom strip, cropped and enlarged.
                 val upright = try {
                     image.toBitmap().rotated(rotation)
                 } catch (e: Exception) {
@@ -82,23 +92,58 @@ class CardTextAnalyzer(
                 } finally {
                     image.close()
                 }
-                if (upright == null || strip.right > upright.width || strip.bottom > upright.height) {
+                if (upright == null || region.right > upright.width || region.bottom > upright.height) {
                     deliver(quick, fullLines)
                     return@addOnCompleteListener
                 }
-                val crop = cropAndEnlarge(upright, strip)
-                recognizer.process(InputImage.fromBitmap(crop.bitmap, 0))
-                    .addOnSuccessListener { stripText ->
-                        val stripLines = stripText.toLines(
-                            offsetX = strip.left, offsetY = strip.top, scale = crop.scale, fromStrip = true,
-                        )
-                        // Both readings of the strip take part: the enlarged crop is usually better,
-                        // but on full-art cards the plain frame can be (the parser prefers lines with a set code).
-                        val merged = fullLines + stripLines
+
+                // Pass 2: the region enlarged, read as is and as inverted high-contrast grey
+                // (light text on a dark background becomes dark text on light).
+                val crop = cropAndEnlarge(upright, region)
+                val inverted = invertedHighContrast(crop.bitmap)
+                fun linesOf(text: Text) = text.toLines(
+                    offsetX = region.left, offsetY = region.top, scale = crop.scale, fromStrip = true,
+                )
+                recognizer.process(InputImage.fromBitmap(crop.bitmap, 0)).addOnCompleteListener { first ->
+                    val plain = if (first.isSuccessful) linesOf(first.result) else emptyList()
+                    recognizer.process(InputImage.fromBitmap(inverted, 0)).addOnCompleteListener { second ->
+                        val inv = if (second.isSuccessful) linesOf(second.result) else emptyList()
+                        // All readings take part; the parser prefers complete lines with a set code.
+                        val merged = fullLines + plain + inv
                         deliver(CardTextParser.parse(merged, height) ?: quick, merged)
                     }
-                    .addOnFailureListener { deliver(quick, fullLines) }
+                }
             }
+    }
+
+    /** Around the number-like lines, widened to the left to catch a lost leading digit and the set code. */
+    private fun numberRegion(lines: List<OcrLine>, width: Int, height: Int): Strip? {
+        val numbers = lines.filter { NUMBER_LIKE.containsMatchIn(it.text) }
+        if (numbers.isEmpty()) return null
+        val h = numbers.maxOf { it.height }.coerceAtLeast(10)
+        val left = max(0, numbers.minOf { it.left } - 3 * h)
+        val right = min(width, numbers.maxOf { it.right } + h)
+        val top = max(0, numbers.minOf { it.top } - h)
+        val bottom = min(height, numbers.maxOf { it.bottom } + h)
+        if (right - left < 30 || bottom - top < 15) return null
+        return Strip(left, top, right, bottom)
+    }
+
+    /** Grey, contrast-stretched and inverted copy: white outlined digits on dark art become dark on light. */
+    private fun invertedHighContrast(source: Bitmap): Bitmap {
+        val c = 1.6f
+        val offset = 128f + 128f * c
+        val matrix = ColorMatrix(
+            floatArrayOf(
+                -c * 0.299f, -c * 0.587f, -c * 0.114f, 0f, offset,
+                -c * 0.299f, -c * 0.587f, -c * 0.114f, 0f, offset,
+                -c * 0.299f, -c * 0.587f, -c * 0.114f, 0f, offset,
+                0f, 0f, 0f, 1f, 0f,
+            ),
+        )
+        val result = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
+        Canvas(result).drawBitmap(source, 0f, 0f, Paint().apply { colorFilter = ColorMatrixColorFilter(matrix) })
+        return result
     }
 
     /** A number like "123/193" printed at least ~2.2 % of the frame height tall means the corner is shown up close. */
@@ -133,7 +178,7 @@ class CardTextAnalyzer(
     private fun cropAndEnlarge(source: Bitmap, strip: Strip): Crop {
         val w = strip.right - strip.left
         val h = strip.bottom - strip.top
-        val scale = min(2.5f, 2000f / w).coerceAtLeast(1f)
+        val scale = min(3f, 2000f / w).coerceAtLeast(1f)
         val matrix = Matrix().apply { postScale(scale, scale) }
         val bitmap = Bitmap.createBitmap(source, strip.left, strip.top, w, h, matrix, true)
         return Crop(bitmap, scale)
