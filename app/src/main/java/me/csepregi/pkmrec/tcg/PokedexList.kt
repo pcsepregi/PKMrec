@@ -27,12 +27,21 @@ object PokedexList {
 
     private const val PREFS = "pokedex_list"
     private const val KEY_LIST_ID = "list_id"
+    private const val KEY_ENABLED = "enabled"
 
     /** The owner's "Pokedex" list; can be changed in settings. */
     const val DEFAULT_LIST_ID = 65678
 
     private val POKEDEX_PATH = Regex("""^/pokedex/(\d+)/([^/?#]+)""")
     private val LIST_ID_IN_URL = Regex("""/lists/(\d+)""")
+
+    /** Whether the result screen looks up the Pokedex list at all (default: on). */
+    fun isEnabled(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_ENABLED, true)
+
+    fun setEnabled(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_ENABLED, enabled).apply()
+    }
 
     fun listId(context: Context): Int =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(KEY_LIST_ID, DEFAULT_LIST_ID)

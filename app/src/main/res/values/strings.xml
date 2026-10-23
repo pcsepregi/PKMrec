@@ -57,6 +57,8 @@
     <string name="lookup_pick_candidate">Melyik kártya ez?</string>
     <string name="lookup_pick_variant">Melyik változat van a kezedben?</string>
     <string name="lookup_other_card">Másik kártya</string>
+    <string name="lookup_none_of_these">Egyik sem</string>
+    <string name="lookup_none_of_these_hint">Visszaviszlek a kamerához. Próbáld közelebbről, a bal alsó sarkot mutatva, vagy add meg kézzel a szettkódot és a számot.</string>
     <string name="lookup_other_variant">Másik változat</string>
     <string name="lookup_variant_line">Változat: %1$s · angolul %2$d db</string>
     <string name="lookup_other_languages">Más nyelven megvan (%1$d db)</string>
@@ -74,6 +76,8 @@
     <string name="settings_version">Verzió</string>
     <string name="settings_check_update">Frissítés keresése</string>
     <string name="settings_pokedex_list">Pokedex lista</string>
+    <string name="settings_pokedex_enabled">Keresés a Pokedex listában</string>
+    <string name="settings_pokedex_enabled_desc">A felismerés után megmutatja, melyik kártya van a listádban ugyanebből a Pokémonból.</string>
     <string name="settings_pokedex_list_hint">A TCG Collector lista linkje vagy azonosítója</string>
     <string name="settings_pokedex_list_current">Jelenlegi lista: #%1$d</string>
     <string name="settings_pokedex_list_save">Mentés</string>

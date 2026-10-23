@@ -215,80 +215,41 @@ private fun ScannerContent(onBack: () -> Unit, onRecognized: (CardReading) -> Un
                 .border(3.dp, Color.White.copy(alpha = 0.8f), RoundedCornerShape(16.dp)),
         )
 
-        // Top bar
-        Row(
+        // Top: explanation (and the raw text panel when switched on)
+        Column(
             modifier = Modifier
+                .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            FilledTonalButton(onClick = onBack) { Text("‹ " + stringResource(R.string.back)) }
-            Spacer(Modifier.weight(1f))
-            FilledTonalButton(onClick = { showRaw = !showRaw }) { Text(stringResource(R.string.camera_raw_text)) }
-            Spacer(Modifier.width(8.dp))
-            val maxZoom = camera?.cameraInfo?.zoomState?.value?.maxZoomRatio ?: 1f
-            if (maxZoom >= 2f) {
-                FilledTonalButton(onClick = {
-                    zoomed = !zoomed
-                    camera?.cameraControl?.setZoomRatio(if (zoomed) 2f else 1f)
-                }) { Text(if (zoomed) "2x" else "1x") }
-                Spacer(Modifier.width(8.dp))
-            }
-            if (camera?.cameraInfo?.hasFlashUnit() == true) {
-                FilledTonalButton(onClick = {
-                    torchOn = !torchOn
-                    camera?.cameraControl?.enableTorch(torchOn)
-                }) {
-                    Text(stringResource(if (torchOn) R.string.camera_torch_off else R.string.camera_torch_on))
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(stringResource(R.string.camera_hint), style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        stringResource(R.string.camera_glare_tip),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
+            if (showRaw) {
+                RawTextPanel(lines = rawLines, reading = confirmed ?: live)
+            }
         }
 
-        if (showRaw) {
-            RawTextPanel(
-                lines = rawLines,
-                reading = confirmed ?: live,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .statusBarsPadding()
-                    .padding(top = 64.dp, start = 12.dp, end = 12.dp),
-            )
-        }
-
-        // Bottom area: live reading / confirmed result
+        // Bottom: live reading and all controls, within thumb reach
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(16.dp),
+                .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             val result = confirmed
-            if (result == null) {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(stringResource(R.string.camera_hint), style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                            stringResource(R.string.camera_glare_tip),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Text(
-                            text = live?.let { stringResource(R.string.camera_reading, it.display) }
-                                ?: stringResource(R.string.camera_searching),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(top = 4.dp),
-                        )
-                    }
-                }
-                OutlinedButton(
-                    onClick = { showManual = true },
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text(stringResource(R.string.camera_manual_entry), color = Color.White) }
-            } else {
+            if (result != null) {
                 RecognizedCard(
                     reading = result,
                     onRescan = {
@@ -297,6 +258,55 @@ private fun ScannerContent(onBack: () -> Unit, onRecognized: (CardReading) -> Un
                         confirmed = null
                     },
                 )
+            } else {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = live?.let { stringResource(R.string.camera_reading, it.display) }
+                            ?: stringResource(R.string.camera_searching),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                val maxZoom = camera?.cameraInfo?.zoomState?.value?.maxZoomRatio ?: 1f
+                if (maxZoom >= 2f) {
+                    FilledTonalButton(
+                        onClick = {
+                            zoomed = !zoomed
+                            camera?.cameraControl?.setZoomRatio(if (zoomed) 2f else 1f)
+                        },
+                        modifier = Modifier.weight(1f),
+                    ) { Text(if (zoomed) "2x" else "1x") }
+                }
+                if (camera?.cameraInfo?.hasFlashUnit() == true) {
+                    FilledTonalButton(
+                        onClick = {
+                            torchOn = !torchOn
+                            camera?.cameraControl?.enableTorch(torchOn)
+                        },
+                        modifier = Modifier.weight(1f),
+                    ) { Text(stringResource(if (torchOn) R.string.camera_torch_off else R.string.camera_torch_on)) }
+                }
+                FilledTonalButton(onClick = { showRaw = !showRaw }, modifier = Modifier.weight(1.4f)) {
+                    Text(stringResource(R.string.camera_raw_text), maxLines = 1)
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                FilledTonalButton(onClick = onBack, modifier = Modifier.weight(1f)) {
+                    Text("‹ " + stringResource(R.string.back))
+                }
+                Button(onClick = { showManual = true }, modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.camera_manual_entry))
+                }
             }
         }
     }

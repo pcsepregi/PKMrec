@@ -113,6 +113,14 @@ fun LookupScreen(onRescan: () -> Unit, onHome: () -> Unit, onLogin: () -> Unit) 
                     s.candidates.forEach { card ->
                         CardRow(card = card, onClick = { vm.chooseCard(card) })
                     }
+                    OutlinedButton(onClick = onRescan, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.lookup_none_of_these))
+                    }
+                    Text(
+                        stringResource(R.string.lookup_none_of_these_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
 
                 is LookupUiState.PickVariant -> {

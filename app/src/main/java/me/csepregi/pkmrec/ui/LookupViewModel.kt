@@ -105,6 +105,10 @@ class LookupViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Starts loading the Pokedex list card in the background while the user picks the variant. */
     private fun loadPokedex(card: TcgCard) {
+        if (!PokedexList.isEnabled(getApplication())) {
+            _pokedex.value = PokedexUiState.Idle
+            return
+        }
         if (pokedexCardId == card.id && _pokedex.value !is PokedexUiState.Error) return
         pokedexCardId = card.id
         pokedexJob?.cancel()
