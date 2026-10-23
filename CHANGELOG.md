@@ -2,6 +2,10 @@
 
 Release notes shown in the app's update dialog are taken from the matching section below.
 
+## Unreleased (planned for the next version)
+
+- Camera: 2x zoom by default when the camera opens (the 1x/2x button stays to switch back).
+
 ## 0.5.6
 
 - Fixes Clawitzer MEG 141/132 and similar full-art cards: the italic "1/" that the text recognizer reads as "V" ("14V132") is now understood as "141/132".
