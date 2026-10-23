@@ -59,6 +59,11 @@ object CardTextParser {
 
     private val SLASH_SPACING = Regex("""\s*/\s*""")
     private val SEPARATORS = Regex("""[·•‧∙\-–—_.,:;|\[\](){}<>«»"'`]""")
+    /**
+     * Italic outlined digits (full-art cards) merge "1/" or "/" into a "V": "141/132" → "14V132".
+     * Also accepts a backslash or pipe read instead of the slash.
+     */
+    private val SLASH_AS_V = Regex("""^(\d{1,3})[V\\|](\d{2,3})$""")
     private val GLUED_EN = Regex("""^([A-Z0-9]{2,4})EN$""")
     private val SET_CODE = Regex("""^[A-Z0-9]{2,4}$""")
     private val NOT_SET_CODES = setOf("EN", "HP", "EX", "GX", "VMAX", "VSTAR", "TM", "ILLUS", "THE")
@@ -90,6 +95,7 @@ object CardTextParser {
             .replace(SEPARATORS, " ")
             .split(Regex("\\s+"))
             .filter { it.isNotBlank() }
+            .map { token -> fixSlashReadAsV(token) }
             .flatMap { token ->
                 val glued = GLUED_EN.matchEntire(token)
                 if (glued != null && isSetCode(glued.groupValues[1])) listOf(glued.groupValues[1], "EN") else listOf(token)
@@ -154,6 +160,14 @@ object CardTextParser {
         }.joinToString("")
         if (digits.isEmpty() || digits.length > 3 || !digits.all { it.isDigit() }) return null
         return (prefix ?: "") + digits
+    }
+
+    /** "14V132" → "141/132" (the V swallowed "1/"); "123V193" → "123/193" (the V is just the slash). */
+    internal fun fixSlashReadAsV(token: String): String {
+        val match = SLASH_AS_V.matchEntire(token) ?: return token
+        val (number, total) = match.destructured
+        val fixedNumber = if (number.length < total.length) number + "1" else number
+        return "$fixedNumber/$total"
     }
 
     internal fun isTruncated(number: String, total: String): Boolean {

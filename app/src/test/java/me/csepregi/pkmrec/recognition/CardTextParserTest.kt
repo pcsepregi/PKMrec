@@ -145,6 +145,15 @@ class CardTextParserTest {
     }
 
     @Test
+    fun `italic slash read as V`() {
+        // Real OCR line from Clawitzer MEG 141/132 (white outlined italic digits on dark art).
+        val r = parse(line("MEG EN 14V132", 950))!!
+        assertEquals("MEG 141/132", r.display)
+        assertEquals("123/193", CardTextParser.fixSlashReadAsV("123V193"))
+        assertEquals("PALV", CardTextParser.fixSlashReadAsV("PALV"))
+    }
+
+    @Test
     fun `returns null when no number is visible`() {
         assertNull(parse(line("Fuecoco ex", 60), line("Singe", 500)))
     }
