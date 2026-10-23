@@ -14,11 +14,12 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 /**
- * Runs on-device ML Kit text recognition on camera frames in two passes:
+ * Runs on-device ML Kit text recognition on camera frames:
  *
  * 1. the whole frame, to find the card's text area (and the name at the top);
- * 2. a crop of the card's bottom strip, enlarged, so the small set code and number
- *    are read more reliably (they are tiny and often partly covered by glare).
+ * 2. only when the whole card is in view: a crop of the card's bottom strip, enlarged,
+ *    so the small set code and number are read more reliably. When just the card's
+ *    corner is shown up close, the first pass is enough.
  *
  * Reports the reading of each frame (or null) and the lines used. Results are delivered on the main thread.
  */
@@ -27,6 +28,10 @@ class CardTextAnalyzer(
 ) : ImageAnalysis.Analyzer, Closeable {
 
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+
+    private companion object {
+        val NUMBER_LIKE = Regex("""\w{1,5}\s*/\s*\w{2,5}""")
+    }
 
     @Volatile var paused = false
 
@@ -39,29 +44,47 @@ class CardTextAnalyzer(
     }
 
     override fun analyze(image: ImageProxy) {
-        if (paused || busy) {
+        val media = image.image
+        if (paused || busy || media == null) {
             image.close()
             return
         }
         busy = true
         val rotation = image.imageInfo.rotationDegrees
-        val upright: Bitmap = try {
-            image.toBitmap().rotated(rotation)
-        } catch (e: Exception) {
-            image.close()
-            busy = false
-            return
-        }
-        image.close()
+        val sideways = rotation == 90 || rotation == 270
+        val width = if (sideways) image.height else image.width
+        val height = if (sideways) image.width else image.height
 
-        recognizer.process(InputImage.fromBitmap(upright, 0))
-            .addOnFailureListener { deliver(null, emptyList()) }
-            .addOnSuccessListener { text ->
-                val fullLines = text.toLines()
-                val strip = bottomStrip(fullLines, upright.width, upright.height)
-                if (strip == null || paused) {
-                    deliver(CardTextParser.parse(fullLines, upright.height), fullLines)
-                    return@addOnSuccessListener
+        // Pass 1: the camera frame as is (no bitmap conversion, fast).
+        recognizer.process(InputImage.fromMediaImage(media, rotation))
+            .addOnCompleteListener { task ->
+                if (!task.isSuccessful || paused) {
+                    image.close()
+                    deliver(null, emptyList())
+                    return@addOnCompleteListener
+                }
+                val fullLines = task.result.toLines()
+                val quick = CardTextParser.parse(fullLines, height)
+
+                // Close-up of the card corner: the number is already large, a second pass would only cost time.
+                val strip = if (isCloseUp(fullLines, height)) null else bottomStrip(fullLines, width, height)
+                if (strip == null) {
+                    image.close()
+                    deliver(quick, fullLines)
+                    return@addOnCompleteListener
+                }
+
+                // Pass 2: the card's bottom strip, cropped and enlarged.
+                val upright = try {
+                    image.toBitmap().rotated(rotation)
+                } catch (e: Exception) {
+                    null
+                } finally {
+                    image.close()
+                }
+                if (upright == null || strip.right > upright.width || strip.bottom > upright.height) {
+                    deliver(quick, fullLines)
+                    return@addOnCompleteListener
                 }
                 val crop = cropAndEnlarge(upright, strip)
                 recognizer.process(InputImage.fromBitmap(crop.bitmap, 0))
@@ -71,12 +94,16 @@ class CardTextAnalyzer(
                         )
                         // Text above the strip comes from the full frame, the strip itself from the enlarged crop.
                         val merged = fullLines.filter { it.bottom < strip.top } + stripLines
-                        val reading = CardTextParser.parse(merged, upright.height)
-                            ?: CardTextParser.parse(fullLines, upright.height)
-                        deliver(reading, merged)
+                        deliver(CardTextParser.parse(merged, height) ?: quick, merged)
                     }
-                    .addOnFailureListener { deliver(CardTextParser.parse(fullLines, upright.height), fullLines) }
+                    .addOnFailureListener { deliver(quick, fullLines) }
             }
+    }
+
+    /** A number like "123/193" printed at least ~2.2 % of the frame height tall means the corner is shown up close. */
+    private fun isCloseUp(lines: List<OcrLine>, height: Int): Boolean {
+        val numberHeight = lines.filter { NUMBER_LIKE.containsMatchIn(it.text) }.maxOfOrNull { it.height } ?: return false
+        return numberHeight >= height * 0.022f
     }
 
     override fun close() {

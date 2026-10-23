@@ -4,7 +4,8 @@ package me.csepregi.pkmrec.recognition
  * Combines readings from recent camera frames by voting per field, so glare that hides
  * the number in one frame and the set code in another still gives a complete result.
  *
- * - The number (with total) is confirmed once it won [numberVotes] votes in the window.
+ * - The number (with total) is confirmed once it won [numberVotes] votes in the window
+ *   and at least twice as many as any other number (one misread digit cannot win).
  * - The set code is then the code most often read together with that number, if it got
  *   [codeVotes] votes; if that number was read [noCodeAfter] times without any code
  *   reaching that, the card is taken to have no set code (older cards).
@@ -37,6 +38,7 @@ class ReadingStabilizer(
         // 1) number + total
         val byNumber = readings.groupBy { it.number to it.total }
         val (numberKey, sameNumber) = byNumber.maxBy { it.value.size }
+        val runnerUp = byNumber.values.filter { it !== sameNumber }.maxOfOrNull { it.size } ?: 0
 
         // 2) set code read together with that number
         val codes = sameNumber.mapNotNull { it.setCode }.groupingBy { it }.eachCount()
@@ -51,7 +53,8 @@ class ReadingStabilizer(
         val guess = CardReading(setCode, numberKey.first, numberKey.second, mark, name)
         current = guess
 
-        val confirmed = sameNumber.size >= numberVotes && codeDecided
+        // The winning number must clearly lead: at least twice the votes of any other number.
+        val confirmed = sameNumber.size >= numberVotes && sameNumber.size >= 2 * runnerUp && codeDecided
         return if (confirmed) {
             // Older card without set code: do not report a code read only once by mistake.
             if (bestCode == null || bestCode.value < codeVotes) guess.copy(setCode = null) else guess

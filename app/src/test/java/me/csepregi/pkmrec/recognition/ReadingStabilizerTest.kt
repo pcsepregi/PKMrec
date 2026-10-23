@@ -56,4 +56,13 @@ class ReadingStabilizerTest {
         s.offer(pal); s.offer(obf); s.offer(pal)
         assertNotNull(s.offer(pal))
     }
+
+    @Test
+    fun `a misread number that is nearly as frequent blocks confirmation`() {
+        val misread = CardReading("PAL", "128", "193")
+        val s = ReadingStabilizer()
+        s.offer(pal); s.offer(misread); s.offer(pal); s.offer(misread)
+        assertNull(s.offer(pal))                          // 3 vs 2: not a clear lead
+        assertEquals("123", s.offer(pal)!!.number)        // 4 vs 2: clear lead
+    }
 }

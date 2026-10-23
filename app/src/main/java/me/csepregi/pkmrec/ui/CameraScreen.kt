@@ -132,6 +132,7 @@ private fun ScannerContent(onBack: () -> Unit, onRecognized: (CardReading) -> Un
     var confirmed by remember { mutableStateOf<CardReading?>(null) }
     var camera by remember { mutableStateOf<Camera?>(null) }
     var torchOn by remember { mutableStateOf(false) }
+    var zoomed by remember { mutableStateOf(false) }
     var showManual by remember { mutableStateOf(false) }
     var showRaw by remember { mutableStateOf(false) }
     var rawLines by remember { mutableStateOf<List<OcrLine>>(emptyList()) }
@@ -226,6 +227,14 @@ private fun ScannerContent(onBack: () -> Unit, onRecognized: (CardReading) -> Un
             Spacer(Modifier.weight(1f))
             FilledTonalButton(onClick = { showRaw = !showRaw }) { Text(stringResource(R.string.camera_raw_text)) }
             Spacer(Modifier.width(8.dp))
+            val maxZoom = camera?.cameraInfo?.zoomState?.value?.maxZoomRatio ?: 1f
+            if (maxZoom >= 2f) {
+                FilledTonalButton(onClick = {
+                    zoomed = !zoomed
+                    camera?.cameraControl?.setZoomRatio(if (zoomed) 2f else 1f)
+                }) { Text(if (zoomed) "2x" else "1x") }
+                Spacer(Modifier.width(8.dp))
+            }
             if (camera?.cameraInfo?.hasFlashUnit() == true) {
                 FilledTonalButton(onClick = {
                     torchOn = !torchOn

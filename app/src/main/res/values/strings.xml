@@ -26,8 +26,8 @@
     <string name="settings_account">TCG Collector fiók</string>
 
     <!-- Camera / recognition -->
-    <string name="camera_hint">Tartsd a kártyát a keretben, hogy az alja jól olvasható legyen.</string>
-    <string name="camera_glare_tip">Csillog? Döntsd meg kicsit a telefont, a vakut hagyd kikapcsolva. Koppintással oda élesít, ahová koppintasz.</string>
+    <string name="camera_hint">Mutasd a teljes kártyát a keretben, vagy közelről csak a bal alsó sarkát (szettkód és szám).</string>
+    <string name="camera_glare_tip">Közelről nem éles? Kapcsolj 2x-es zoomra, és tartsd messzebb a telefont. Csillog? Döntsd meg kicsit, a vakut hagyd kikapcsolva. Koppintással oda élesít, ahová koppintasz.</string>
     <string name="camera_searching">Keresem a kártya számát…</string>
     <string name="camera_reading">Olvasom: %1$s</string>
     <string name="camera_recognized">Felismert kártya</string>
