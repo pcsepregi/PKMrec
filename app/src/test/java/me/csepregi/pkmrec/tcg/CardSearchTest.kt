@@ -133,4 +133,15 @@ class CardSearchTest {
         assertEquals("SWSH123", reading.number)
         assertEquals(null, reading.setCode)
     }
+
+    @Test
+    fun `set codes glued to the regulation mark or misread still match`() {
+        assertTrue(CardMatcher.codeMatchesLoosely("OMEG", "MEG"))
+        assertTrue(CardMatcher.codeMatchesLoosely("MEC", "MEG"))
+        assertTrue(CardMatcher.codeMatchesLoosely("3OC", "30C"))
+        assertTrue(!CardMatcher.codeMatchesLoosely("PAL", "OBF"))
+        val pool = listOf(card(1, "Clawitzer", "MEG", "141/132"), card(2, "Other", "XYZ", "141/132"))
+        val r = CardMatcher.match(CardReading("OMEG", "141", "132"), pool)
+        assertEquals(1, (r as MatchResult.Single).card.id)
+    }
 }

@@ -28,7 +28,12 @@ object CardMatcher {
         if (sameNumber.isEmpty()) return MatchResult.NotFound
 
         val code = reading.setCode
-        val byCode = if (code != null) sameNumber.filter { it.expansionCode.equals(code, ignoreCase = true) } else emptyList()
+        val byCode = if (code != null) {
+            sameNumber.filter { it.expansionCode.equals(code, ignoreCase = true) }
+                .ifEmpty { sameNumber.filter { codeMatchesLoosely(code, it.expansionCode) } }
+        } else {
+            emptyList()
+        }
         // If the code was misread and matches nothing, fall back to all cards with that number.
         val pool = byCode.ifEmpty { sameNumber }
         if (pool.size == 1) return MatchResult.Single(pool.first())
@@ -41,6 +46,19 @@ object CardMatcher {
             if (best >= 0.6 && best - second >= NAME_MARGIN) return MatchResult.Single(ranked[0])
         }
         return MatchResult.Ambiguous(ranked)
+    }
+
+    /**
+     * OCR set codes are sometimes glued to the regulation mark or misread: "OMEG" or "MEC" for "MEG",
+     * "3OC" for "30C". Accepts O/0 swaps, one extra character in front or behind, or one wrong character.
+     */
+    internal fun codeMatchesLoosely(ocr: String, cardCode: String?): Boolean {
+        if (cardCode.isNullOrBlank()) return false
+        val a = ocr.uppercase().replace('O', '0')
+        val b = cardCode.uppercase().replace('O', '0')
+        if (a == b) return true
+        if (a.length == b.length + 1 && (a.endsWith(b) || a.startsWith(b))) return true
+        return a.length == b.length && b.length >= 3 && a.zip(b).count { (x, y) -> x != y } == 1
     }
 
     /** "015/128" vs card "015/128"; leading zeros are ignored ("57/111" = "057/111"). */

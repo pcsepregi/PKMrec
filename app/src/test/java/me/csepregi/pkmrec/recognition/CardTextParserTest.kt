@@ -129,6 +129,22 @@ class CardTextParserTest {
     }
 
     @Test
+    fun `drops truncated numbers next to a set code and skips ability text as name`() {
+        // Clawitzer MEG 141/132 (Illustration Rare): the first digit was lost in one reading.
+        assertNull(parse(line("OMEG EN 41/132", 950)))
+        val r = parse(
+            line("Attach up to 2 Basic Energy cards from your hand", 120, h = 60),
+            line("OMEG EN 41/132", 950),
+            line("I MEG EN 141/132", 955),
+        )!!
+        assertEquals("141", r.number)
+        assertEquals("MEG", r.setCode)
+        assertNull(r.name)
+        // Old cards without set code print unpadded numbers and stay valid.
+        assertEquals("57", parse(line("57/111", 950))!!.number)
+    }
+
+    @Test
     fun `returns null when no number is visible`() {
         assertNull(parse(line("Fuecoco ex", 60), line("Singe", 500)))
     }

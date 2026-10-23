@@ -110,6 +110,9 @@ object CardTextParser {
             val code = codeBeforeEn(tokens.subList(0, index))
                 ?: codeBeforeEn(tokens.subList(index + 1, tokens.size))
                 ?: nearestCodeBeforeEn(line, allLines)
+            // Cards with a set code (Scarlet & Violet era on) always print zero-padded numbers
+            // ("041/132"); "41/132" next to a set code is a partial read of e.g. "141/132".
+            if (code != null && isTruncated(number, total)) continue
             return CardReading(code?.first, number, total, code?.second)
         }
 
@@ -153,6 +156,11 @@ object CardTextParser {
         return (prefix ?: "") + digits
     }
 
+    internal fun isTruncated(number: String, total: String): Boolean {
+        if (number.any { it.isLetter() } || total.any { it.isLetter() }) return false
+        return number.length < total.length
+    }
+
     private fun isSetCode(token: String) =
         SET_CODE.matches(token) && token.any { it.isLetter() } && token !in NOT_SET_CODES
 
@@ -188,7 +196,9 @@ object CardTextParser {
             .filter { it.top <= limit }
             .map { it to cleanName(it.text) }
             .filter { (_, text) ->
-                text.count { it.isLetter() } >= 3 && !text.contains('/') && !NOT_NAMES.matches(text)
+                text.count { it.isLetter() } >= 3 && !text.contains('/') && !NOT_NAMES.matches(text) &&
+                    // Names are short; long sentences are ability or attack text (full-art cards).
+                    text.length <= 28 && text.split(' ').size <= 4 && !text.startsWith("ability", ignoreCase = true)
             }
             .maxByOrNull { (line, _) -> line.height }
             ?.second

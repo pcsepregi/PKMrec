@@ -92,8 +92,9 @@ class CardTextAnalyzer(
                         val stripLines = stripText.toLines(
                             offsetX = strip.left, offsetY = strip.top, scale = crop.scale, fromStrip = true,
                         )
-                        // Text above the strip comes from the full frame, the strip itself from the enlarged crop.
-                        val merged = fullLines.filter { it.bottom < strip.top } + stripLines
+                        // Both readings of the strip take part: the enlarged crop is usually better,
+                        // but on full-art cards the plain frame can be (the parser prefers lines with a set code).
+                        val merged = fullLines + stripLines
                         deliver(CardTextParser.parse(merged, height) ?: quick, merged)
                     }
                     .addOnFailureListener { deliver(quick, fullLines) }
