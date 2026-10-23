@@ -2,6 +2,12 @@
 
 Release notes shown in the app's update dialog are taken from the matching section below.
 
+## 0.5.2
+
+- Camera screen: all buttons are now at the bottom, the explanation at the top.
+- Card picker: new "Egyik sem" option, back to the camera.
+- Settings: switch to turn the Pokedex list lookup on or off (on by default).
+
 ## 0.5.1
 
 - Faster recognition: the second, enlarged reading only runs when the whole card is in view.
