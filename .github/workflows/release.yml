@@ -6,7 +6,7 @@ name: Release
 on:
   push:
     branches: [main]
-    paths: [VERSION]
+    paths: [VERSION, .github/workflows/release.yml]
   workflow_dispatch:
 
 permissions:
@@ -41,14 +41,41 @@ jobs:
         with:
           gradle-version: "8.14.3"
 
-      - name: Restore signing keystore
+      - name: "Signing: SIGNING_KEYSTORE_BASE64 secret is set"
         if: env.SKIP != 'true'
         env:
           SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
         run: |
-          if [ -z "$SIGNING_KEYSTORE_BASE64" ]; then echo "Missing SIGNING_KEYSTORE_BASE64 secret"; exit 1; fi
-          echo "$SIGNING_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
+          echo "length: ${#SIGNING_KEYSTORE_BASE64}"
+          [ -n "$SIGNING_KEYSTORE_BASE64" ]
+
+      - name: "Signing: SIGNING_PASSWORD secret is set"
+        if: env.SKIP != 'true'
+        env:
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+        run: |
+          echo "length: ${#SIGNING_PASSWORD}"
+          [ -n "$SIGNING_PASSWORD" ]
+
+      - name: "Signing: decode keystore"
+        if: env.SKIP != 'true'
+        env:
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+        run: |
+          # Tolerate spaces / line breaks introduced when pasting the secret.
+          printf '%s' "$SIGNING_KEYSTORE_BASE64" | tr -d '[:space:]' | base64 --decode > "$RUNNER_TEMP/release.jks"
+          ls -l "$RUNNER_TEMP/release.jks"
           echo "SIGNING_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+
+      - name: "Signing: keystore opens with SIGNING_PASSWORD"
+        if: env.SKIP != 'true'
+        env:
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+        run: |
+          PASS="$(printf '%s' "$SIGNING_PASSWORD" | tr -d '[:space:]')"
+          keytool -list -keystore "$SIGNING_KEYSTORE_PATH" -storepass "$PASS" -alias pkmrec > /dev/null
+          echo "::add-mask::$PASS"
+          echo "SIGNING_PASSWORD_CLEAN=$PASS" >> "$GITHUB_ENV"
 
       - name: Unit tests
         if: env.SKIP != 'true'
@@ -57,8 +84,8 @@ jobs:
       - name: Build signed release APK
         if: env.SKIP != 'true'
         env:
-          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
-          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+          SIGNING_STORE_PASSWORD: ${{ env.SIGNING_PASSWORD_CLEAN }}
+          SIGNING_KEY_PASSWORD: ${{ env.SIGNING_PASSWORD_CLEAN }}
           SIGNING_KEY_ALIAS: pkmrec
         run: gradle --no-daemon assembleRelease -PappVersion="$VERSION"
 
