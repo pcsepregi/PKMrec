@@ -62,7 +62,10 @@
     <string name="lookup_other_languages">Más nyelven megvan (%1$d db)</string>
     <string name="lookup_open_tcg">Megnyitás a TCG Collectoron</string>
     <string name="lookup_pokedex_title">A Pokedex listádban</string>
-    <string name="lookup_pokedex_next_version">Ez a következő verzióban jön.</string>
+    <string name="lookup_pokedex_loading">Keresem a listádban…</string>
+    <string name="lookup_pokedex_error">Nem sikerült megnézni a listát: %1$s</string>
+    <string name="lookup_pokedex_none">Ebből a Pokémonból még nincs kártya a listádban.</string>
+    <string name="lookup_pokedex_same_card">Pontosan ez a kártya van a listádban.</string>
     <string name="verdict_owned">MEGVAN</string>
     <string name="verdict_not_owned">NINCS MEG</string>
 
@@ -71,7 +74,12 @@
     <string name="settings_version">Verzió</string>
     <string name="settings_check_update">Frissítés keresése</string>
     <string name="settings_pokedex_list">Pokedex lista</string>
-    <string name="settings_pokedex_list_later">A lista beállítása egy későbbi verzióban jön.</string>
+    <string name="settings_pokedex_list_hint">A TCG Collector lista linkje vagy azonosítója</string>
+    <string name="settings_pokedex_list_current">Jelenlegi lista: #%1$d</string>
+    <string name="settings_pokedex_list_save">Mentés</string>
+    <string name="settings_pokedex_list_saved">Lista elmentve</string>
+    <string name="settings_pokedex_list_invalid">Ez nem egy TCG Collector lista linkje</string>
+    <string name="settings_pokedex_list_open">Lista megnyitása</string>
 
     <!-- Update -->
     <string name="update_available_title">Új verzió érhető el</string>

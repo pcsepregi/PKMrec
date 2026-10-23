@@ -56,6 +56,7 @@ private const val CARD_IMAGE_ASPECT = 63f / 88f
 fun LookupScreen(onRescan: () -> Unit, onHome: () -> Unit, onLogin: () -> Unit) {
     val vm: LookupViewModel = viewModel()
     val state by vm.state.collectAsState()
+    val pokedex by vm.pokedex.collectAsState()
 
     LaunchedEffect(Unit) {
         val reading = CurrentScan.reading
@@ -127,6 +128,8 @@ fun LookupScreen(onRescan: () -> Unit, onHome: () -> Unit, onLogin: () -> Unit) 
 
                 is LookupUiState.Verdict -> VerdictContent(
                     state = s,
+                    pokedex = pokedex,
+                    onRetryPokedex = { vm.retryPokedex() },
                     onRescan = onRescan,
                     onOtherVariant = { vm.backToVariants(s.card) },
                 )
@@ -145,7 +148,13 @@ private fun Centered(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun VerdictContent(state: LookupUiState.Verdict, onRescan: () -> Unit, onOtherVariant: () -> Unit) {
+private fun VerdictContent(
+    state: LookupUiState.Verdict,
+    pokedex: PokedexUiState,
+    onRetryPokedex: () -> Unit,
+    onRescan: () -> Unit,
+    onOtherVariant: () -> Unit,
+) {
     val context = LocalContext.current
     val color = if (state.owned) VerdictColors.Owned else VerdictColors.NotOwned
 
@@ -181,19 +190,7 @@ private fun VerdictContent(state: LookupUiState.Verdict, onRescan: () -> Unit, o
 
     CardHeader(state.card, large = true)
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(stringResource(R.string.lookup_pokedex_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(
-                stringResource(R.string.lookup_pokedex_next_version),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
+    PokedexSection(pokedex, onRetry = onRetryPokedex)
 
     Button(onClick = onRescan, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.camera_rescan)) }
     if (state.canPickOtherVariant) {
@@ -205,6 +202,51 @@ private fun VerdictContent(state: LookupUiState.Verdict, onRescan: () -> Unit, o
         onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(state.card.url))) },
         modifier = Modifier.fillMaxWidth(),
     ) { Text(stringResource(R.string.lookup_open_tcg)) }
+}
+
+/** "A Pokedex listádban": the list's card(s) for the same Pokémon. */
+@Composable
+private fun PokedexSection(state: PokedexUiState, onRetry: () -> Unit) {
+    if (state == PokedexUiState.Idle || state == PokedexUiState.NotAPokemon) return
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(stringResource(R.string.lookup_pokedex_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            when (state) {
+                PokedexUiState.Loading -> Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.width(20.dp).aspectRatio(1f), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(10.dp))
+                    Text(stringResource(R.string.lookup_pokedex_loading), style = MaterialTheme.typography.bodyMedium)
+                }
+                is PokedexUiState.Error -> {
+                    Text(stringResource(R.string.lookup_pokedex_error, state.message), style = MaterialTheme.typography.bodyMedium)
+                    TextButton(onClick = onRetry) { Text(stringResource(R.string.retry)) }
+                }
+                is PokedexUiState.Loaded -> state.perPokemon.forEach { entry ->
+                    if (state.perPokemon.size > 1) {
+                        Text("#%04d %s".format(entry.entry.number, entry.entry.slug.replaceFirstChar { it.uppercase() }), style = MaterialTheme.typography.labelLarge)
+                    }
+                    if (entry.cards.isEmpty()) {
+                        Text(stringResource(R.string.lookup_pokedex_none), style = MaterialTheme.typography.bodyMedium)
+                    }
+                    entry.cards.forEach { card ->
+                        CardHeader(card)
+                        if (card.id == state.scannedCardId) {
+                            Text(
+                                stringResource(R.string.lookup_pokedex_same_card),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = VerdictColors.Owned,
+                            )
+                        }
+                    }
+                }
+                else -> Unit
+            }
+        }
+    }
 }
 
 @Composable

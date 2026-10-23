@@ -1,20 +1,30 @@
 package me.csepregi.pkmrec.ui
 
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -22,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import me.csepregi.pkmrec.BuildConfig
 import me.csepregi.pkmrec.R
+import me.csepregi.pkmrec.tcg.PokedexList
 import me.csepregi.pkmrec.tcg.SessionState
 import me.csepregi.pkmrec.tcg.TcgSession
 import me.csepregi.pkmrec.update.UpdateManager
@@ -38,6 +49,7 @@ fun SettingsScreen(onBack: () -> Unit, onLogin: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -83,10 +95,33 @@ fun SettingsScreen(onBack: () -> Unit, onLogin: () -> Unit) {
             HorizontalDivider()
 
             Section(title = stringResource(R.string.settings_pokedex_list)) {
-                Text(
-                    stringResource(R.string.settings_pokedex_list_later),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                var listId by remember { mutableIntStateOf(PokedexList.listId(context)) }
+                var input by remember { mutableStateOf("") }
+                Text(stringResource(R.string.settings_pokedex_list_current, listId), style = MaterialTheme.typography.bodyLarge)
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = { input = it },
+                    label = { Text(stringResource(R.string.settings_pokedex_list_hint)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
                 )
+                val saved = stringResource(R.string.settings_pokedex_list_saved)
+                val invalid = stringResource(R.string.settings_pokedex_list_invalid)
+                Button(
+                    onClick = {
+                        val ok = PokedexList.setList(context, input)
+                        if (ok) {
+                            listId = PokedexList.listId(context)
+                            input = ""
+                        }
+                        Toast.makeText(context, if (ok) saved else invalid, Toast.LENGTH_SHORT).show()
+                    },
+                    enabled = input.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.settings_pokedex_list_save)) }
+                TextButton(onClick = {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PokedexList.listUrl(context))))
+                }) { Text(stringResource(R.string.settings_pokedex_list_open)) }
             }
         }
     }

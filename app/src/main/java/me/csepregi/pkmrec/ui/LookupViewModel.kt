@@ -3,6 +3,7 @@ package me.csepregi.pkmrec.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -12,6 +13,9 @@ import me.csepregi.pkmrec.tcg.CardLookup
 import me.csepregi.pkmrec.tcg.CardVariant
 import me.csepregi.pkmrec.tcg.LookupOutcome
 import me.csepregi.pkmrec.tcg.MatchResult
+import me.csepregi.pkmrec.tcg.PokedexList
+import me.csepregi.pkmrec.tcg.PokedexListCards
+import me.csepregi.pkmrec.tcg.PokedexLookupResult
 import me.csepregi.pkmrec.tcg.TcgCard
 
 /** The reading handed from the camera screen to the lookup screen. */
@@ -33,7 +37,21 @@ sealed interface LookupUiState {
     }
 }
 
+/** The "which card of this Pokémon is in my Pokedex list" section. */
+sealed interface PokedexUiState {
+    data object Idle : PokedexUiState
+    data object Loading : PokedexUiState
+    data object NotAPokemon : PokedexUiState
+    data class Error(val message: String) : PokedexUiState
+    data class Loaded(val perPokemon: List<PokedexListCards>, val scannedCardId: Int) : PokedexUiState
+}
+
 class LookupViewModel(app: Application) : AndroidViewModel(app) {
+
+    private val _pokedex = MutableStateFlow<PokedexUiState>(PokedexUiState.Idle)
+    val pokedex: StateFlow<PokedexUiState> = _pokedex.asStateFlow()
+    private var pokedexJob: Job? = null
+    private var pokedexCardId: Int? = null
 
     private val _state = MutableStateFlow<LookupUiState>(LookupUiState.Searching)
     val state: StateFlow<LookupUiState> = _state.asStateFlow()
@@ -62,6 +80,7 @@ class LookupViewModel(app: Application) : AndroidViewModel(app) {
                     MatchResult.NotFound -> LookupUiState.NotFound
                     is MatchResult.Single -> {
                         candidates = emptyList()
+                        loadPokedex(match.card)
                         stateForCard(match.card)
                     }
                     is MatchResult.Ambiguous -> {
@@ -74,7 +93,35 @@ class LookupViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun chooseCard(card: TcgCard) {
+        loadPokedex(card)
         _state.value = stateForCard(card)
+    }
+
+    fun retryPokedex() {
+        val id = pokedexCardId ?: return
+        pokedexCardId = null
+        currentCard()?.takeIf { it.id == id }?.let { loadPokedex(it) }
+    }
+
+    /** Starts loading the Pokedex list card in the background while the user picks the variant. */
+    private fun loadPokedex(card: TcgCard) {
+        if (pokedexCardId == card.id && _pokedex.value !is PokedexUiState.Error) return
+        pokedexCardId = card.id
+        pokedexJob?.cancel()
+        _pokedex.value = PokedexUiState.Loading
+        pokedexJob = viewModelScope.launch {
+            _pokedex.value = when (val result = PokedexList.lookup(getApplication(), card)) {
+                PokedexLookupResult.NotAPokemon -> PokedexUiState.NotAPokemon
+                is PokedexLookupResult.Error -> PokedexUiState.Error(result.message)
+                is PokedexLookupResult.Found -> PokedexUiState.Loaded(result.perPokemon, card.id)
+            }
+        }
+    }
+
+    private fun currentCard(): TcgCard? = when (val s = _state.value) {
+        is LookupUiState.PickVariant -> s.card
+        is LookupUiState.Verdict -> s.card
+        else -> null
     }
 
     fun chooseVariant(card: TcgCard, variant: CardVariant) {
