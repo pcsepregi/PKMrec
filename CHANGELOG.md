@@ -2,9 +2,22 @@
 
 Release notes shown in the app's update dialog are taken from the matching section below.
 
-## Unreleased (planned for the next version)
+## Unreleased: planned 0.6.0 – stability (first technical release)
 
-- Camera: 2x zoom by default when the camera opens (the 1x/2x button stays to switch back).
+Camera:
+- 2x zoom by default when the camera opens (the 1x/2x button stays to switch back).
+
+Error handling:
+- Pokedex list lookup checks the login too; when the session has expired it asks to log in again instead of wrongly showing "no card in your list".
+- Camera start failures (camera busy or unavailable) are caught and shown as a message instead of crashing.
+- Clear Hungarian error messages instead of raw technical text: no internet, timeout, too many requests to TCG Collector (HTTP 429), TCG Collector unavailable / maintenance.
+- Detect a changed TCG Collector page format (missing appState, or results that cannot be parsed) and report "TCG Collector changed, the app needs an update" instead of "card not found".
+- Local error log on the phone (nothing is sent anywhere), with a "Hibanapló másolása" button in settings.
+
+Nice to have:
+- Tests with real, anonymised TCG Collector page samples, so a site change fails the build before it reaches the phone.
+- Reuse camera frame bitmaps instead of allocating new ones every frame (memory).
+- Enable R8 code shrinking for a smaller APK.
 
 ## 0.5.6
 
