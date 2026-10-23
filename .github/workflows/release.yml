@@ -81,7 +81,7 @@ jobs:
 
       - name: Unit tests
         if: env.SKIP != 'true'
-        run: gradle --no-daemon testReleaseUnitTest -PappVersion="$VERSION"
+        run: gradle --no-daemon testReleaseUnitTest -PappVersion="$VERSION" 2>&1 | tee -a build.log; exit ${PIPESTATUS[0]}
 
       - name: Build signed release APK
         if: env.SKIP != 'true'
@@ -89,7 +89,7 @@ jobs:
           SIGNING_STORE_PASSWORD: ${{ env.SIGNING_PASSWORD_CLEAN }}
           SIGNING_KEY_PASSWORD: ${{ env.SIGNING_PASSWORD_CLEAN }}
           SIGNING_KEY_ALIAS: pkmrec
-        run: gradle --no-daemon assembleRelease -PappVersion="$VERSION"
+        run: gradle --no-daemon assembleRelease -PappVersion="$VERSION" 2>&1 | tee -a build.log; exit ${PIPESTATUS[0]}
 
       - name: Prepare release assets
         if: env.SKIP != 'true'
@@ -101,6 +101,10 @@ jobs:
           awk -v v="## $VERSION" '$0==v{f=1;next} /^## /{f=0} f' CHANGELOG.md | sed '/./,$!d' > notes.md
           [ -s notes.md ] || echo "PKMrec $VERSION" > notes.md
           cat notes.md
+
+      - name: Report errors as annotations
+        if: failure()
+        run: .github/scripts/annotate-errors.sh build.log
 
       - name: Publish GitHub release
         if: env.SKIP != 'true'
