@@ -2,6 +2,10 @@
 
 Release notes shown in the app's update dialog are taken from the matching section below.
 
+## 0.5.5
+
+- Light-on-dark card numbers (white outlined digits on full-art cards, e.g. Clawitzer MEG 141/132) are re-read from an enlarged, inverted high-contrast copy when the first reading fails.
+
 ## 0.5.4
 
 - Better recognition of full-art cards (e.g. Illustration Rare): partially read numbers ("41/132" instead of "141/132") are ignored, a set code glued to the regulation mark ("OMEG") still finds the card, ability text is no longer taken as the card name.
