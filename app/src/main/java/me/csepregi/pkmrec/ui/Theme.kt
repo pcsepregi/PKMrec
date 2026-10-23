@@ -7,7 +7,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-private val Blue = Color(0xFF1E3A8A)
+private val Blue = Color(0xFF0A5BD8) // matches the logo
 private val Yellow = Color(0xFFFACC15)
 
 private val LightColors = lightColorScheme(
@@ -18,7 +18,7 @@ private val LightColors = lightColorScheme(
 )
 
 private val DarkColors = darkColorScheme(
-    primary = Color(0xFF93C5FD),
+    primary = Color(0xFF5CC8FF),
     onPrimary = Color(0xFF0B1B44),
     secondary = Yellow,
     onSecondary = Color(0xFF1F2937),

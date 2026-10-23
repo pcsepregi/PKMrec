@@ -4,7 +4,8 @@
     <string name="app_name">PKMrec</string>
 
     <!-- Home -->
-    <string name="home_subtitle">Pokémon kártya felismerő</string>
+    <string name="home_title">Pokémon kártya felismerő</string>
+    <string name="home_byline">PallR - %1$s</string>
     <string name="feature_recognition">Felismerés</string>
     <string name="feature_recognition_desc">Fotózd le a kártyát, és megmondom, megvan-e</string>
     <string name="settings">Beállítások</string>
