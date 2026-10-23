@@ -2,6 +2,12 @@
 
 Release notes shown in the app's update dialog are taken from the matching section below.
 
+## 0.5.0
+
+- The result shows which card of the same Pokémon is in your "Pokedex" list (image, set, number), or that there is none yet.
+- Marks when the scanned card is exactly the one in your list; cards with several Pokémon show each.
+- Settings: choose the Pokedex list by link or ID, open it on TCG Collector.
+
 ## 0.4.0
 
 - After scanning, the card is looked up on TCG Collector (English cards only).

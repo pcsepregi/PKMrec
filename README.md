@@ -11,7 +11,7 @@ The app's user interface is in **Hungarian**. All code, comments and documentati
 
 ## Status
 
-Planning phase. See the full plan: [`doc/PLAN.md`](doc/PLAN.md).
+Milestones 1–5 are done (v0.5.0): self-update, TCG Collector login, camera recognition, owned check with variant picker, Pokedex list card. Remaining: polish (milestone 6). See the full plan: [`doc/PLAN.md`](doc/PLAN.md) and [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Features (planned for v1)
 

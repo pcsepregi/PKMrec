@@ -155,11 +155,12 @@ Other useful facts:
 
 ### Pokedex list
 
-1. On first use (and on "Lista frissítése" in settings) the app downloads all pages of the configured list and stores, for every card: card ID, name, expansion, number, image URL and Pokédex number.
-2. The Pokédex number of each list card is taken from the list sorted by Pokédex number, verified via the card page where ambiguous (cards of non-Pokémon or multi-Pokémon cards are skipped).
-3. Lookup: Pokédex number of the scanned card (from its card page) → list card with the same Pokédex number.
-4. The cache is refreshed automatically if older than 7 days, and manually from settings.
-5. The list is configured by URL/ID in settings (default: the owner's "Pokedex" list).
+As implemented (v0.5.0) – no list download or cache is needed:
+
+1. The scanned card's page links its Pokédex entries in the footer (`/pokedex/<number>/<slug>/intl`; several for multi-Pokémon cards, none for Trainer/Energy cards).
+2. Each Pokédex page filtered to the list (`?inUserCardList=<listId>&displayAs=list`) shows exactly the list's card(s) for that Pokémon; the `displayAs=images` variant gives the images.
+3. This runs in the background while the user picks the variant.
+4. The list is configured by URL/ID in settings (default: the owner's "Pokedex" list).
 
 ### Session and login
 
