@@ -65,7 +65,6 @@ jobs:
         run: |
           # Tolerate spaces / line breaks introduced when pasting the secret.
           CLEAN="$(printf '%s' "$SIGNING_KEYSTORE_BASE64" | tr -d '[:space:]')"
-          echo "::notice::keystore secret: ${#CLEAN} chars, starts '${CLEAN:0:6}', ends '${CLEAN: -6}', invalid chars: $(printf '%s' "$CLEAN" | tr -d 'A-Za-z0-9+/=' | wc -c)"
           printf '%s' "$CLEAN" | base64 --decode > "$RUNNER_TEMP/release.jks"
           ls -l "$RUNNER_TEMP/release.jks"
           echo "SIGNING_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
