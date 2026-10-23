@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The app UI is Hungarian. -->
+<resources>
+    <string name="app_name">PKMrec</string>
+
+    <!-- Home -->
+    <string name="home_subtitle">Pokémon kártya felismerő</string>
+    <string name="feature_recognition">Felismerés</string>
+    <string name="feature_recognition_desc">Fotózd le a kártyát, és megmondom, megvan-e</string>
+    <string name="settings">Beállítások</string>
+    <string name="coming_soon">Hamarosan érkezik</string>
+
+    <!-- Settings -->
+    <string name="back">Vissza</string>
+    <string name="settings_version">Verzió</string>
+    <string name="settings_check_update">Frissítés keresése</string>
+    <string name="settings_pokedex_list">Pokedex lista</string>
+    <string name="settings_pokedex_list_later">A lista beállítása egy későbbi verzióban jön.</string>
+
+    <!-- Update -->
+    <string name="update_available_title">Új verzió érhető el</string>
+    <string name="update_available_text">Elérhető a(z) %1$s verzió (most: %2$s). Frissíted?</string>
+    <string name="update_now">Frissítés</string>
+    <string name="update_later">Később</string>
+    <string name="update_downloading">Letöltés…</string>
+    <string name="update_verifying">Ellenőrzés…</string>
+    <string name="update_installing">Telepítés…</string>
+    <string name="update_up_to_date">A legfrissebb verziót használod.</string>
+    <string name="update_checking">Frissítés keresése…</string>
+    <string name="update_failed">A frissítés nem sikerült: %1$s</string>
+    <string name="update_check_failed">Nem sikerült frissítést keresni: %1$s</string>
+    <string name="update_permission_title">Engedély szükséges</string>
+    <string name="update_permission_text">A frissítéshez engedélyezned kell, hogy a PKMrec alkalmazást telepíthessen. Megnyitom a beállítást, ott kapcsold be, majd gyere vissza.</string>
+    <string name="update_permission_open">Beállítás megnyitása</string>
+    <string name="update_release_notes">Újdonságok:</string>
+    <string name="ok">Rendben</string>
+    <string name="cancel">Mégse</string>
+</resources>

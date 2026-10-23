@@ -211,7 +211,8 @@ Other useful facts:
 - **CI (GitHub Actions):**
   - `build.yml` – on every push / PR: build debug APK, run unit tests, lint; APK attached as a workflow artifact.
   - `release.yml` – on tag `v*`: build signed release APK, compute SHA-256, create a GitHub Release with notes and both assets.
-- **Signing:** keystore generated once; stored as repository secrets `SIGNING_KEYSTORE_BASE64`, `SIGNING_STORE_PASSWORD`, `SIGNING_KEY_ALIAS`, `SIGNING_KEY_PASSWORD`. Never committed.
+- **Signing:** keystore generated once (key alias `pkmrec`, same password for store and key); stored as repository secrets `SIGNING_KEYSTORE_BASE64` and `SIGNING_PASSWORD`. Never committed. The owner keeps an offline backup.
+- **Debug builds** (from `build.yml`) use the package name `me.csepregi.pkmrec.debug`, can be installed next to the release app, and do not self-update.
 - **Tests:** unit tests for the OCR text parser and for the `appState` extractor, using saved (anonymised) HTML samples in `app/src/test/resources`.
 
 ## 10. Milestones
