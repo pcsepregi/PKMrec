@@ -2,6 +2,10 @@
 
 Release notes shown in the app's update dialog are taken from the matching section below.
 
+## 0.5.4
+
+- Better recognition of full-art cards (e.g. Illustration Rare): partially read numbers ("41/132" instead of "141/132") are ignored, a set code glued to the regulation mark ("OMEG") still finds the card, ability text is no longer taken as the card name.
+
 ## 0.5.3
 
 - Card rarity (e.g. "Double Rare") is shown next to the card number, also for the Pokedex list card.
