@@ -33,7 +33,7 @@ fun SessionStatus(state: SessionState, onLogin: () -> Unit, modifier: Modifier =
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            val (text, action): Pair<String, Pair<String, () -> Unit>?> = when (state) {
+            val status: Pair<String, Pair<String, () -> Unit>?> = when (state) {
                 SessionState.Unknown, SessionState.Checking ->
                     stringResource(R.string.session_checking) to null
                 is SessionState.LoggedIn ->
@@ -47,6 +47,7 @@ fun SessionStatus(state: SessionState, onLogin: () -> Unit, modifier: Modifier =
                     msg to (stringResource(R.string.retry) to { TcgSession.refresh(context) })
                 }
             }
+            val (text, action) = status
             Text(text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
             if (state is SessionState.LoggedIn && state.user.isPremium) {
                 AssistChip(onClick = {}, label = { Text(stringResource(R.string.session_premium)) })
