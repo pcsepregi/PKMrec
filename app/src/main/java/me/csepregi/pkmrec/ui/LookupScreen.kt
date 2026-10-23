@@ -264,10 +264,13 @@ private fun CardHeader(card: TcgCard, large: Boolean = false) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(card.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Text(card.expansionName + (card.expansionCode?.let { " ($it)" } ?: ""), style = MaterialTheme.typography.bodyMedium)
-            Text(card.number, style = MaterialTheme.typography.bodyMedium)
+            Text(numberAndRarity(card), style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
+
+private fun numberAndRarity(card: TcgCard): String =
+    listOfNotNull(card.number.ifBlank { null }, card.rarity).joinToString(" · ")
 
 @Composable
 private fun CardImage(card: TcgCard, width: Int) {
@@ -301,7 +304,7 @@ private fun CardRow(card: TcgCard, onClick: () -> Unit) {
             Column {
                 Text(card.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text(card.expansionName + (card.expansionCode?.let { " ($it)" } ?: ""), style = MaterialTheme.typography.bodyMedium)
-                Text(card.number, style = MaterialTheme.typography.bodySmall)
+                Text(numberAndRarity(card), style = MaterialTheme.typography.bodySmall)
             }
         }
     }

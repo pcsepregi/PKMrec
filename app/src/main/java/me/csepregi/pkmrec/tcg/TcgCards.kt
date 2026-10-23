@@ -32,6 +32,8 @@ data class TcgCard(
     val expansionName: String,
     val expansionCode: String?,
     val number: String,
+    /** e.g. "Double Rare", "Illustration Rare"; null if not shown. */
+    val rarity: String? = null,
     val path: String,
     val imageUrl: String?,
     val regionId: Int?,
@@ -67,6 +69,8 @@ object TcgSearchParser {
                 expansionName = row.selectFirst(".card-list-item-expansion-name")?.text()?.trim().orEmpty(),
                 expansionCode = row.selectFirst(".card-list-item-expansion-code")?.text()?.trim()?.ifEmpty { null },
                 number = row.selectFirst(".card-list-item-number-entry")?.text()?.trim().orEmpty(),
+                rarity = row.selectFirst(".card-list-item-rarity-entry img")
+                    ?.let { it.attr("alt").ifBlank { it.attr("title") } }?.trim()?.ifEmpty { null },
                 path = link.attr("href"),
                 imageUrl = null,
                 regionId = (regions?.get(key) as? JsonPrimitive)?.intOrNull,

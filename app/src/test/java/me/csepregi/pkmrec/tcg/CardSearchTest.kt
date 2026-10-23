@@ -17,6 +17,7 @@ class CardSearchTest {
             <a href="/sets/11820/30th-celebration" class="card-list-item-expansion-code"> 30C </a>
           </div>
           <div class="card-list-item-entry card-list-item-number-entry"> 015/128 </div>
+          <div class="card-list-item-entry card-list-item-rarity-entry"><img src="x.svg" alt="Double Rare" class="card-rarity-symbol"></div>
         </div>
         <div class="card-list-item card-search-result-item" data-card-id="59618">
           <a href="/cards/59618/beautifly" class="card-list-item-entry card-list-item-name-entry"> Beautifly </a>
@@ -63,6 +64,8 @@ class CardSearchTest {
         assertEquals("30th Celebration", fuecoco.expansionName)
         assertEquals("30C", fuecoco.expansionCode)
         assertEquals("015/128", fuecoco.number)
+        assertEquals("Double Rare", fuecoco.rarity)
+        assertEquals(null, cards.first { it.id == 59618 }.rarity)
         assertEquals(1, fuecoco.regionId)
         assertEquals("https://www.tcgcollector.com/cards/89541/fuecoco-ex-30th-celebration-015-128", fuecoco.url)
 
@@ -98,7 +101,7 @@ class CardSearchTest {
     }
 
     private fun card(id: Int, name: String, code: String, number: String) =
-        TcgCard(id, name, "Set $code", code, number, "/cards/$id/x", null, 1, emptyList())
+        TcgCard(id, name, "Set $code", code, number, path = "/cards/$id/x", imageUrl = null, regionId = 1, variants = emptyList())
 
     @Test
     fun `old cards without set code are decided by name or left to the user`() {

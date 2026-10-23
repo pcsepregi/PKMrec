@@ -2,6 +2,10 @@
 
 Release notes shown in the app's update dialog are taken from the matching section below.
 
+## 0.5.3
+
+- Card rarity (e.g. "Double Rare") is shown next to the card number, also for the Pokedex list card.
+
 ## 0.5.2
 
 - Camera screen: all buttons are now at the bottom, the explanation at the top.
