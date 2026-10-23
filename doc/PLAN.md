@@ -202,7 +202,7 @@ Other useful facts:
 
 ### Versioning
 
-- `versionName` = `X.Y.Z` from the git tag; `versionCode` = `X*10000 + Y*100 + Z`.
+- `versionName` = `X.Y.Z` from the `VERSION` file; `versionCode` = `X*10000 + Y*100 + Z`.
 - Release assets: `PKMrec-X.Y.Z.apk` and `PKMrec-X.Y.Z.apk.sha256`.
 
 ## 9. Build and release
@@ -210,7 +210,8 @@ Other useful facts:
 - **Build system:** Gradle (Kotlin DSL), version catalog, JDK 17, `compileSdk`/`targetSdk` = latest stable, `minSdk` = 31.
 - **CI (GitHub Actions):**
   - `build.yml` – on every push / PR: build debug APK, run unit tests, lint; APK attached as a workflow artifact.
-  - `release.yml` – on tag `v*`: build signed release APK, compute SHA-256, create a GitHub Release with notes and both assets.
+  - `release.yml` – when the `VERSION` file changes on `main`: build signed release APK, compute SHA-256, create the `vX.Y.Z` tag and a GitHub Release with both assets. Release notes come from the matching section of `CHANGELOG.md`.
+- **Releasing a new version:** bump `VERSION`, add a `## X.Y.Z` section to `CHANGELOG.md`, push to `main`.
 - **Signing:** keystore generated once (key alias `pkmrec`, same password for store and key); stored as repository secrets `SIGNING_KEYSTORE_BASE64` and `SIGNING_PASSWORD`. Never committed. The owner keeps an offline backup.
 - **Debug builds** (from `build.yml`) use the package name `me.csepregi.pkmrec.debug`, can be installed next to the release app, and do not self-update.
 - **Tests:** unit tests for the OCR text parser and for the `appState` extractor, using saved (anonymised) HTML samples in `app/src/test/resources`.

@@ -40,7 +40,7 @@ The app is distributed as a signed APK via this repository's [Releases](../../re
 
 ## Building
 
-Builds run on GitHub Actions; no local Android toolchain is needed. Every push to `main` builds the app; tagging a version (`vX.Y.Z`) publishes a signed release APK. Details are in [`doc/PLAN.md`](doc/PLAN.md#9-build-and-release).
+Builds run on GitHub Actions; no local Android toolchain is needed. Every push to `main` builds the app; changing the `VERSION` file publishes a signed release APK (tag and GitHub release are created by the workflow). Details are in [`doc/PLAN.md`](doc/PLAN.md#9-build-and-release).
 
 ## Tech stack
 

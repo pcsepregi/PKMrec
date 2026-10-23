@@ -1,8 +1,13 @@
 name: Release
 
+# A release is published when the VERSION file changes on main (or when run manually).
+# The workflow creates the vX.Y.Z tag and the GitHub release itself.
+# Release notes come from the matching "## X.Y.Z" section of CHANGELOG.md.
 on:
   push:
-    tags: ["v*.*.*"]
+    branches: [main]
+    paths: [VERSION]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -10,21 +15,34 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # tag annotation is used as release notes
+
+      - name: Read version
+        run: |
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then echo "Invalid VERSION: $VERSION"; exit 1; fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "Release v$VERSION already exists, nothing to do."
+            echo "SKIP=true" >> "$GITHUB_ENV"
+          fi
 
       - uses: actions/setup-java@v4
+        if: env.SKIP != 'true'
         with:
           distribution: temurin
           java-version: "17"
 
       - uses: gradle/actions/setup-gradle@v4
+        if: env.SKIP != 'true'
         with:
           gradle-version: "8.14.3"
 
       - name: Restore signing keystore
+        if: env.SKIP != 'true'
         env:
           SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
         run: |
@@ -33,30 +51,32 @@ jobs:
           echo "SIGNING_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
 
       - name: Unit tests
-        run: gradle --no-daemon testReleaseUnitTest
+        if: env.SKIP != 'true'
+        run: gradle --no-daemon testReleaseUnitTest -PappVersion="$VERSION"
 
       - name: Build signed release APK
+        if: env.SKIP != 'true'
         env:
           SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
           SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
           SIGNING_KEY_ALIAS: pkmrec
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          gradle --no-daemon assembleRelease -PappVersion="$VERSION"
+        run: gradle --no-daemon assembleRelease -PappVersion="$VERSION"
 
       - name: Prepare release assets
+        if: env.SKIP != 'true'
         run: |
           mkdir -p dist
           cp app/build/outputs/apk/release/app-release.apk "dist/PKMrec-$VERSION.apk"
-          cd dist
-          sha256sum "PKMrec-$VERSION.apk" > "PKMrec-$VERSION.apk.sha256"
-          cat "PKMrec-$VERSION.apk.sha256"
+          (cd dist && sha256sum "PKMrec-$VERSION.apk" > "PKMrec-$VERSION.apk.sha256" && cat "PKMrec-$VERSION.apk.sha256")
+          # Release notes: the "## $VERSION" section of CHANGELOG.md
+          awk -v v="## $VERSION" '$0==v{f=1;next} /^## /{f=0} f' CHANGELOG.md | sed '/./,$!d' > notes.md
+          [ -s notes.md ] || echo "PKMrec $VERSION" > notes.md
+          cat notes.md
 
       - name: Publish GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
+        if: env.SKIP != 'true'
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/* \
+          gh release create "v$VERSION" dist/* \
+            --target "$GITHUB_SHA" \
             --title "PKMrec $VERSION" \
-            --notes-from-tag
+            --notes-file notes.md
