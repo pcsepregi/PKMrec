@@ -17,6 +17,8 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -26,6 +28,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import me.csepregi.pkmrec.R
+import me.csepregi.pkmrec.tcg.SessionState
+import me.csepregi.pkmrec.tcg.TcgSession
 
 /** One entry on the home screen. More features will be added to this list later. */
 private data class Feature(val title: Int, val description: Int, val emoji: String)
@@ -35,7 +39,8 @@ private val features = listOf(
 )
 
 @Composable
-fun HomeScreen(onOpenSettings: () -> Unit) {
+fun HomeScreen(onOpenSettings: () -> Unit, onLogin: () -> Unit) {
+    val session by TcgSession.state.collectAsState()
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val comingSoon = stringResource(R.string.coming_soon)
@@ -69,13 +74,19 @@ fun HomeScreen(onOpenSettings: () -> Unit) {
                 }
             }
 
+            SessionStatus(state = session, onLogin = onLogin)
+
             Spacer(Modifier.height(8.dp))
 
             features.forEach { feature ->
                 Card(
                     onClick = {
-                        // Milestone 3 opens the camera here.
-                        scope.launch { snackbar.showSnackbar(comingSoon) }
+                        if (session is SessionState.LoggedOut) {
+                            onLogin()
+                        } else {
+                            // Milestone 3 opens the camera here.
+                            scope.launch { snackbar.showSnackbar(comingSoon) }
+                        }
                     },
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(

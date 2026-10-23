@@ -1,0 +1,69 @@
+package me.csepregi.pkmrec.tcg
+
+import android.webkit.CookieManager
+import kotlinx.serialization.json.JsonObject
+import okhttp3.Cookie
+import okhttp3.CookieJar
+import okhttp3.HttpUrl
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.io.IOException
+import java.util.concurrent.TimeUnit
+
+/** TCG Collector website constants. */
+object Tcg {
+    const val BASE_URL = "https://www.tcgcollector.com"
+    const val SIGN_IN_URL = "$BASE_URL/sign-in"
+
+    /** A light page that is only fully available to a logged-in user; used to check the session. */
+    const val SESSION_CHECK_URL = "$BASE_URL/account/settings"
+}
+
+/**
+ * Shares cookies between OkHttp and Android's WebView, so the session created by logging in
+ * on the WebView login page is used by the app's own HTTP requests.
+ */
+class WebViewCookieJar : CookieJar {
+    private val manager: CookieManager get() = CookieManager.getInstance()
+
+    override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
+        cookies.forEach { manager.setCookie(url.toString(), it.toString()) }
+        manager.flush()
+    }
+
+    override fun loadForRequest(url: HttpUrl): List<Cookie> {
+        val header = manager.getCookie(url.toString()) ?: return emptyList()
+        return header.split(";").mapNotNull { Cookie.parse(url, it.trim()) }
+    }
+}
+
+/** A downloaded page with its embedded appState. */
+data class TcgPage(val finalUrl: String, val html: String, val appState: JsonObject?)
+
+/**
+ * Low-level HTTP access to TCG Collector pages, using the WebView's session cookies and
+ * the WebView's user agent so requests look like the in-app browser.
+ */
+class TcgClient(private val userAgent: String) {
+
+    private val http = OkHttpClient.Builder()
+        .cookieJar(WebViewCookieJar())
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .build()
+
+    fun fetchPage(url: String): TcgPage {
+        val request = Request.Builder()
+            .url(url)
+            .header("User-Agent", userAgent)
+            .header("Accept", "text/html,application/xhtml+xml")
+            .header("Accept-Language", "en-US,en;q=0.9")
+            .build()
+        http.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
+            val html = response.body!!.string()
+            return TcgPage(response.request.url.toString(), html, AppStateExtractor.extract(html))
+        }
+    }
+}

@@ -10,7 +10,9 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import me.csepregi.pkmrec.tcg.TcgSession
 import me.csepregi.pkmrec.ui.HomeScreen
+import me.csepregi.pkmrec.ui.LoginScreen
 import me.csepregi.pkmrec.ui.PkmrecTheme
 import me.csepregi.pkmrec.ui.SettingsScreen
 import me.csepregi.pkmrec.ui.UpdateDialog
@@ -28,10 +30,19 @@ class MainActivity : ComponentActivity() {
                     val nav = rememberNavController()
                     NavHost(navController = nav, startDestination = Routes.HOME) {
                         composable(Routes.HOME) {
-                            HomeScreen(onOpenSettings = { nav.navigate(Routes.SETTINGS) })
+                            HomeScreen(
+                                onOpenSettings = { nav.navigate(Routes.SETTINGS) },
+                                onLogin = { nav.navigate(Routes.LOGIN) },
+                            )
                         }
                         composable(Routes.SETTINGS) {
-                            SettingsScreen(onBack = { nav.popBackStack() })
+                            SettingsScreen(
+                                onBack = { nav.popBackStack() },
+                                onLogin = { nav.navigate(Routes.LOGIN) },
+                            )
+                        }
+                        composable(Routes.LOGIN) {
+                            LoginScreen(onDone = { nav.popBackStack() })
                         }
                     }
                     UpdateDialog()
@@ -39,6 +50,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         UpdateManager.checkOnStart(this)
+        TcgSession.refresh(this)
     }
 
     override fun onResume() {
@@ -54,4 +66,5 @@ class MainActivity : ComponentActivity() {
 object Routes {
     const val HOME = "home"
     const val SETTINGS = "settings"
+    const val LOGIN = "login"
 }

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -21,13 +22,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import me.csepregi.pkmrec.BuildConfig
 import me.csepregi.pkmrec.R
+import me.csepregi.pkmrec.tcg.SessionState
+import me.csepregi.pkmrec.tcg.TcgSession
 import me.csepregi.pkmrec.update.UpdateManager
 import me.csepregi.pkmrec.update.UpdateState
 
 @Composable
-fun SettingsScreen(onBack: () -> Unit) {
+fun SettingsScreen(onBack: () -> Unit, onLogin: () -> Unit) {
     val context = LocalContext.current
     val updateState by UpdateManager.state.collectAsState()
+    val session by TcgSession.state.collectAsState()
 
     Scaffold { padding ->
         Column(
@@ -43,6 +47,18 @@ fun SettingsScreen(onBack: () -> Unit) {
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
             )
+
+            Section(title = stringResource(R.string.settings_account)) {
+                SessionStatus(state = session, onLogin = onLogin)
+                if (session is SessionState.LoggedIn) {
+                    OutlinedButton(
+                        onClick = { TcgSession.logout(context) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(stringResource(R.string.logout)) }
+                }
+            }
+
+            HorizontalDivider()
 
             Section(title = stringResource(R.string.settings_version)) {
                 Text(BuildConfig.VERSION_NAME, style = MaterialTheme.typography.bodyLarge)

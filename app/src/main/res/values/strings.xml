@@ -10,6 +10,20 @@
     <string name="settings">Beállítások</string>
     <string name="coming_soon">Hamarosan érkezik</string>
 
+    <!-- Login / session -->
+    <string name="login_title">Belépés a TCG Collectorba</string>
+    <string name="login_hint">Az e-mail-címedet és a jelszavadat közvetlenül a TCG Collector oldalán adod meg. Az app nem látja és nem tárolja a jelszót.</string>
+    <string name="login">Belépés</string>
+    <string name="logout">Kijelentkezés</string>
+    <string name="session_checking">Bejelentkezés ellenőrzése…</string>
+    <string name="session_logged_in">Bejelentkezve: %1$s</string>
+    <string name="session_premium">Prémium</string>
+    <string name="session_logged_out">Nincs bejelentkezve a TCG Collectorba</string>
+    <string name="session_error">Nem sikerült ellenőrizni a bejelentkezést (%1$s)</string>
+    <string name="session_error_last_user">Utoljára bejelentkezve: %1$s. Nem sikerült ellenőrizni (%2$s).</string>
+    <string name="retry">Újra</string>
+    <string name="settings_account">TCG Collector fiók</string>
+
     <!-- Settings -->
     <string name="back">Vissza</string>
     <string name="settings_version">Verzió</string>
