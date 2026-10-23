@@ -12,8 +12,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import me.csepregi.pkmrec.tcg.TcgSession
 import me.csepregi.pkmrec.ui.CameraScreen
+import me.csepregi.pkmrec.ui.CurrentScan
 import me.csepregi.pkmrec.ui.HomeScreen
 import me.csepregi.pkmrec.ui.LoginScreen
+import me.csepregi.pkmrec.ui.LookupScreen
 import me.csepregi.pkmrec.ui.PkmrecTheme
 import me.csepregi.pkmrec.ui.SettingsScreen
 import me.csepregi.pkmrec.ui.UpdateDialog
@@ -38,7 +40,20 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable(Routes.CAMERA) {
-                            CameraScreen(onBack = { nav.popBackStack() })
+                            CameraScreen(
+                                onBack = { nav.popBackStack() },
+                                onRecognized = { reading ->
+                                    CurrentScan.reading = reading
+                                    nav.navigate(Routes.LOOKUP)
+                                },
+                            )
+                        }
+                        composable(Routes.LOOKUP) {
+                            LookupScreen(
+                                onRescan = { nav.popBackStack() },
+                                onHome = { nav.popBackStack(Routes.HOME, inclusive = false) },
+                                onLogin = { nav.navigate(Routes.LOGIN) },
+                            )
                         }
                         composable(Routes.SETTINGS) {
                             SettingsScreen(
@@ -73,4 +88,5 @@ object Routes {
     const val SETTINGS = "settings"
     const val LOGIN = "login"
     const val CAMERA = "camera"
+    const val LOOKUP = "lookup"
 }

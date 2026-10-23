@@ -52,6 +52,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -85,7 +86,7 @@ import kotlin.math.roundToInt
 private const val CARD_ASPECT = 63f / 88f
 
 @Composable
-fun CameraScreen(onBack: () -> Unit) {
+fun CameraScreen(onBack: () -> Unit, onRecognized: (CardReading) -> Unit) {
     val context = LocalContext.current
     var hasPermission by remember {
         mutableStateOf(
@@ -117,11 +118,11 @@ fun CameraScreen(onBack: () -> Unit) {
         return
     }
 
-    ScannerContent(onBack = onBack)
+    ScannerContent(onBack = onBack, onRecognized = onRecognized)
 }
 
 @Composable
-private fun ScannerContent(onBack: () -> Unit) {
+private fun ScannerContent(onBack: () -> Unit, onRecognized: (CardReading) -> Unit) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val haptics = LocalHapticFeedback.current
@@ -148,6 +149,11 @@ private fun ScannerContent(onBack: () -> Unit) {
         }
     }
     analyzer.paused = confirmed != null || showManual
+
+    // A confirmed reading (camera or manual entry) goes straight to the TCG Collector lookup.
+    LaunchedEffect(confirmed) {
+        confirmed?.let(onRecognized)
+    }
 
     val previewView = remember { PreviewView(context).apply { scaleType = PreviewView.ScaleType.FILL_CENTER } }
 
@@ -379,11 +385,6 @@ private fun RecognizedCard(reading: CardReading, onRescan: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Text(
-                stringResource(R.string.camera_lookup_next_version),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
             Spacer(Modifier.height(4.dp))
             Button(onClick = onRescan, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.camera_rescan))

@@ -32,7 +32,6 @@
     <string name="camera_reading">Olvasom: %1$s</string>
     <string name="camera_recognized">Felismert kártya</string>
     <string name="camera_no_set_code">Szettkódot nem láttam a kártyán (régebbi kártya?). A keresésnél a név is segít.</string>
-    <string name="camera_lookup_next_version">A TCG Collectoron való keresés a következő verzióban jön.</string>
     <string name="camera_rescan">Új szkennelés</string>
     <string name="camera_manual_entry">Kézi bevitel</string>
     <string name="camera_torch_on">Vaku be</string>
@@ -47,6 +46,25 @@
     <string name="camera_permission_text">A kártya felismeréséhez az appnak hozzá kell férnie a kamerához. A képek a telefonon maradnak, sehova nem töltődnek fel.</string>
     <string name="camera_permission_allow">Engedélyezés</string>
     <string name="camera_permission_settings">Beállítások megnyitása</string>
+
+    <!-- Lookup / result -->
+    <string name="lookup_home">Főoldal</string>
+    <string name="lookup_scanned">Beolvasva: %1$s</string>
+    <string name="lookup_searching">Keresés a TCG Collectoron…</string>
+    <string name="lookup_not_logged_in">A kereséshez be kell jelentkezned a TCG Collectorba.</string>
+    <string name="lookup_error">Nem sikerült a keresés: %1$s</string>
+    <string name="lookup_not_found">Nem találtam ilyen angol kártyát a TCG Collectoron. Próbáld újra szkennelni, vagy add meg kézzel a számot.</string>
+    <string name="lookup_pick_candidate">Melyik kártya ez?</string>
+    <string name="lookup_pick_variant">Melyik változat van a kezedben?</string>
+    <string name="lookup_other_card">Másik kártya</string>
+    <string name="lookup_other_variant">Másik változat</string>
+    <string name="lookup_variant_line">Változat: %1$s · angolul %2$d db</string>
+    <string name="lookup_other_languages">Más nyelven megvan (%1$d db)</string>
+    <string name="lookup_open_tcg">Megnyitás a TCG Collectoron</string>
+    <string name="lookup_pokedex_title">A Pokedex listádban</string>
+    <string name="lookup_pokedex_next_version">Ez a következő verzióban jön.</string>
+    <string name="verdict_owned">MEGVAN</string>
+    <string name="verdict_not_owned">NINCS MEG</string>
 
     <!-- Settings -->
     <string name="back">Vissza</string>
