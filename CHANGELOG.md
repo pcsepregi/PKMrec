@@ -2,6 +2,12 @@
 
 Release notes shown in the app's update dialog are taken from the matching section below.
 
+## 0.2.0
+
+- Log in to TCG Collector inside the app (on TCG Collector's own sign-in page; the app never sees the password).
+- Login status on the home screen and in settings; logout in settings.
+- "Felismerés" opens the login screen when you are not logged in.
+
 ## 0.1.1
 
 - Test release for the in-app self-update.
