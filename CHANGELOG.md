@@ -2,6 +2,10 @@
 
 Release notes shown in the app's update dialog are taken from the matching section below.
 
+## 0.3.3
+
+- New app icon and logo on the home screen.
+
 ## 0.3.2
 
 - Better reading of cards in sleeves and binders: frames are combined field by field, so glare in one frame is compensated by another.
