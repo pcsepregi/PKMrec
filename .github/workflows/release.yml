@@ -3,6 +3,7 @@ name: Release
 # A release is published when the VERSION file changes on main (or when run manually).
 # The workflow creates the vX.Y.Z tag and the GitHub release itself.
 # Release notes come from the matching "## X.Y.Z" section of CHANGELOG.md.
+# Signing secrets: SIGNING_KEYSTORE_BASE64, SIGNING_PASSWORD (key alias: pkmrec).
 on:
   push:
     branches: [main]
