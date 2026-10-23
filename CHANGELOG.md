@@ -2,6 +2,13 @@
 
 Release notes shown in the app's update dialog are taken from the matching section below.
 
+## 0.4.0
+
+- After scanning, the card is looked up on TCG Collector (English cards only).
+- If several cards match (e.g. older cards without set code), you pick the right one by image.
+- Pick the variant you hold; each variant shows whether you own it in English.
+- Big MEGVAN / NINCS MEG result with the official card name and image; copies in other languages are noted.
+
 ## 0.3.3
 
 - New app icon and logo on the home screen.
