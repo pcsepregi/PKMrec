@@ -46,6 +46,10 @@ data class SealedItem(
     val price: SealedPrice? = null,
     /** The product picture on Cardmarket, saved with the price. */
     val imageUrl: String? = null,
+    /** The downloaded picture in the app's files (see [SealedImages]). */
+    val imageFile: String? = null,
+    /** Why the last picture download failed, shown on the product screen. */
+    val imageError: String? = null,
 )
 
 @Serializable
@@ -121,6 +125,9 @@ object SealedInventory {
     suspend fun setPrice(context: Context, id: Int, price: SealedPrice?, productUrl: String?, imageUrl: String? = null) =
         update(context, id) { it.copy(price = price, productUrl = productUrl, imageUrl = imageUrl ?: it.imageUrl) }
 
+    suspend fun setImage(context: Context, id: Int, imageFile: String?, imageError: String?) =
+        update(context, id) { it.copy(imageFile = imageFile ?: it.imageFile, imageError = imageError) }
+
     suspend fun remove(context: Context, id: Int) = change(context) { items -> items.filter { it.id != id } }
 
     fun exportJson(): String = json.encodeToString(InventoryFile.serializer(), InventoryFile(items = _items.value))
@@ -191,6 +198,7 @@ object SealedInventory {
                 purchaseHuf = weightedAverage(old.count, old.purchaseHuf, item.count, item.purchaseHuf),
                 productUrl = old.productUrl ?: item.productUrl,
                 imageUrl = old.imageUrl ?: item.imageUrl,
+                imageFile = old.imageFile ?: item.imageFile,
                 price = listOfNotNull(old.price, item.price).maxByOrNull { it.time },
             )
         }

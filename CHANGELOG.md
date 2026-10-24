@@ -6,6 +6,13 @@ Release notes shown in the app's update dialog are taken from the matching secti
 
 - Enable R8 code shrinking for a smaller APK.
 
+## 1.1.2
+
+Sealed catalog fixes:
+- "Árak frissítése" now waits a few seconds between Cardmarket pages, so Cardmarket asks for its Cloudflare check much less often. A full refresh takes a few minutes.
+- While the refresh runs, Cardmarket is shown on the screen. If it asks for the check, tick it there and the refresh continues by itself.
+- Product pictures are now downloaded through the app's Cardmarket browser and saved on the phone. If a picture cannot be downloaded, the product screen says why.
+
 ## 1.1.1
 
 Sealed catalog improvements:
