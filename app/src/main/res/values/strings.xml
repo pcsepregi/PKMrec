@@ -4,14 +4,14 @@
     <string name="app_name">PKMrec</string>
 
     <!-- Home -->
-    <string name="home_title">Pokémon kártya felismerő</string>
+    <string name="home_title_line1">Pokémon kártya</string>
+    <string name="home_title_line2">felismerő</string>
     <string name="home_byline">PallR - %1$s</string>
     <string name="feature_recognition">Felismerés</string>
-    <string name="feature_recognition_desc">Fotózd le a kártyát, és megmondom, megvan-e</string>
+    <string name="feature_recognition_desc">Fotózd le a kártyát, és megmondom, megvan-e a gyűjteményedben.</string>
     <string name="feature_pokedex">Pokédex</string>
-    <string name="feature_pokedex_desc">Írd be a nevét, és megmutatom a kártyáját a Pokedex listádból</string>
+    <string name="feature_pokedex_desc">Írd be a nevét, és megnézheted a kártyáit a Pokédex listából.</string>
     <string name="settings">Beállítások</string>
-    <string name="coming_soon">Hamarosan érkezik</string>
 
     <!-- Login / session -->
     <string name="login_title">Belépés a TCG Collectorba</string>
@@ -20,6 +20,7 @@
     <string name="logout">Kijelentkezés</string>
     <string name="session_checking">Bejelentkezés ellenőrzése…</string>
     <string name="session_logged_in">Bejelentkezve: %1$s</string>
+    <string name="session_logged_in_label">Bejelentkezve:</string>
     <string name="session_premium">Prémium</string>
     <string name="session_logged_out">Nincs bejelentkezve a TCG Collectorba</string>
     <string name="session_error">Nem sikerült ellenőrizni a bejelentkezést. %1$s</string>

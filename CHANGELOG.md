@@ -7,6 +7,12 @@ Release notes shown in the app's update dialog are taken from the matching secti
 - Tests with real, anonymised TCG Collector page samples (needs saved pages from a logged-in browser).
 - Enable R8 code shrinking for a smaller APK.
 
+## 0.8.0
+
+New look: dark neon blue theme for the whole app.
+- Home screen: bigger logo with a two-line title, round settings button, login card with the premium badge, glowing feature buttons with arrows.
+- Dark blue background with a faint Poké Ball behind every screen; light status bar icons.
+
 ## 0.7.1
 
 - Home screen: new icons for the two buttons (scanner frame for card recognition, magnifier "P" for Pokédex), and both buttons are the same height.
