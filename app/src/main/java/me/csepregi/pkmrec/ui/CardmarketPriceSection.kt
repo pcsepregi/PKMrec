@@ -40,6 +40,7 @@ import me.csepregi.pkmrec.cardmarket.CardmarketPage
 import me.csepregi.pkmrec.cardmarket.CardmarketPrice
 import me.csepregi.pkmrec.cardmarket.CardmarketPrices
 import me.csepregi.pkmrec.cardmarket.CardmarketResult
+import me.csepregi.pkmrec.cardmarket.EurHuf
 import me.csepregi.pkmrec.tcg.CardVariant
 import me.csepregi.pkmrec.tcg.TcgCard
 import me.csepregi.pkmrec.update.UpdateManager
@@ -59,6 +60,7 @@ fun CardmarketPriceSection(card: TcgCard, reverseHolo: Boolean) {
     var refresh by remember { mutableIntStateOf(0) }
     var result by remember(card.id, reverseHolo) { mutableStateOf(CardmarketPrices.cached(context, card, reverseHolo)) }
     var checkUrl by remember { mutableStateOf<String?>(null) }
+    val hufRate = remember { EurHuf.rate(context) }
 
     LaunchedEffect(card.id, reverseHolo, refresh) {
         if (refresh == 0 && result != null) return@LaunchedEffect
@@ -79,7 +81,7 @@ fun CardmarketPriceSection(card: TcgCard, reverseHolo: Boolean) {
             when (val r = result) {
                 null -> Text(stringResource(R.string.cardmarket_loading, title), style = MaterialTheme.typography.bodyLarge)
                 is CardmarketResult.Price -> {
-                    PriceLine(title, CardmarketPrice.format(r.average))
+                    PriceLine(title, r.average, hufRate)
                     Text(
                         stringResource(R.string.cardmarket_rule, r.counted) + if (reverseHolo) stringResource(R.string.cardmarket_reverse_suffix) else "",
                         style = MaterialTheme.typography.bodySmall,
@@ -90,7 +92,7 @@ fun CardmarketPriceSection(card: TcgCard, reverseHolo: Boolean) {
                     }
                 }
                 is CardmarketResult.FewOffers -> {
-                    PriceLine(title, CardmarketPrice.format(r.lowest))
+                    PriceLine(title, r.lowest, hufRate)
                     Text(stringResource(R.string.cardmarket_few_offers, r.eligible), style = MaterialTheme.typography.bodySmall)
                 }
                 is CardmarketResult.NoOffers -> Text(stringResource(R.string.cardmarket_no_offers, title), style = MaterialTheme.typography.bodyLarge)
@@ -139,11 +141,15 @@ fun CardmarketPriceSection(card: TcgCard, reverseHolo: Boolean) {
     }
 }
 
+/** "Cardmarket ár: 8,04 € (≈ 2 949 Ft)"; the forint part only once the EUR–HUF rate is known. */
 @Composable
-private fun PriceLine(title: String, price: String) {
+private fun PriceLine(title: String, euros: Double, hufRate: Double?) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text("$title: ", style = MaterialTheme.typography.titleMedium)
-        Text(price, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text(CardmarketPrice.format(euros), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        if (hufRate != null) {
+            Text(" (≈\u00A0" + EurHuf.formatHuf(euros, hufRate) + ")", style = MaterialTheme.typography.titleMedium)
+        }
     }
 }
 

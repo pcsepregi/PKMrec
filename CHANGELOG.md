@@ -7,6 +7,10 @@ Release notes shown in the app's update dialog are taken from the matching secti
 - Tests with real, anonymised TCG Collector page samples (needs saved pages from a logged-in browser).
 - Enable R8 code shrinking for a smaller APK.
 
+## 0.11.1
+
+- The Cardmarket price also shows the forint value, e.g. "8,04 € (≈ 2 949 Ft)". The EUR–HUF rate is the European Central Bank's daily reference rate, downloaded when the app starts (at most every 6 hours) and kept on the phone.
+
 ## 0.11.0
 
 New: Cardmarket price on the card screens.
