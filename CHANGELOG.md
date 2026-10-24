@@ -2,7 +2,14 @@
 
 Release notes shown in the app's update dialog are taken from the matching section below.
 
-## Unreleased: planned 0.6.0 – stability (first technical release)
+## Unreleased
+
+- Tests with real, anonymised TCG Collector page samples (needs saved pages from a logged-in browser).
+- Enable R8 code shrinking for a smaller APK.
+
+## 0.6.0
+
+Stability release.
 
 Camera:
 - Opens at 2x zoom (the 1x/2x button stays to switch back).
@@ -15,10 +22,6 @@ Error handling:
 - A changed TCG Collector page format (no appState, or results that cannot be read) is reported as "TCG Collector changed, the app needs an update" instead of "card not found".
 - Local error log on the phone (nothing is sent anywhere): settings has a "Hibanapló másolása" button that copies it with the app version and phone model.
 - Unit tests for error classification, page format changes and the error log.
-
-Backlog (not in 0.6.0):
-- Tests with real, anonymised TCG Collector page samples (needs saved pages from a logged-in browser).
-- Enable R8 code shrinking for a smaller APK.
 
 ## 0.5.6
 

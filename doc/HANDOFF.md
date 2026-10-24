@@ -1,4 +1,4 @@
-# PKMrec – handoff notes (state on 2026-10-24, v0.5.6)
+# PKMrec – handoff notes (state on 2026-10-24, v0.6.0)
 
 Notes for continuing development in a new chat. Read together with `README.md`, `doc/PLAN.md` and `CHANGELOG.md`.
 
@@ -56,9 +56,13 @@ Notes for continuing development in a new chat. Read together with `README.md`, 
 - Parser fixes found from real cards: set code glued to "EN" (`PALEN`), set code in a separate text block, separator noise, names relative to the card (not the frame) and not long ability text, numbers next to a set code must be zero-padded (`41/132` is a truncated `141/132`), italic outlined `1/` read as `V` (`14V132` → `141/132`), light-on-dark digits on full-art cards.
 - Older cards without set code: number + total + name; same name in two sets (e.g. Buzzwole-GX 57/111 in 30C and CIN) → candidate picker.
 
-## Next: 0.6.0 – stability (first technical release)
+## 0.6.0 – stability (done)
 
-The full list is in `CHANGELOG.md` under "Unreleased". In short: 2x zoom by default; login check in the Pokedex lookup; catch camera start failures; Hungarian error messages (no internet, timeout, HTTP 429, maintenance); detect TCG Collector page format changes; local error log with copy button. Nice to have: tests with real anonymised page samples, bitmap reuse, R8 shrinking.
+Errors are classified in `tcg/TcgErrors.kt` (`TcgError.of(e)`) and shown via `ui/ErrorText.kt`; a page without appState or with unreadable result rows throws `PageFormatException` ("site changed"). Local error log: `diagnostics/ErrorLog.kt` (app private file, copy button in settings, crash handler installed in `PkmrecApp`). Camera opens at 2x and shows start / camera-state errors with a retry button.
+
+## Backlog
+
+See `CHANGELOG.md` under "Unreleased": tests with real anonymised page samples (needs pages saved from a logged-in browser), R8 shrinking.
 
 ## Ideas for later
 
