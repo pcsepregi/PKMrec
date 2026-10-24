@@ -37,14 +37,14 @@ import me.csepregi.pkmrec.tcg.SessionState
 import me.csepregi.pkmrec.tcg.TcgSession
 
 /** One entry on the home screen. More features will be added to this list later. */
-private data class Feature(val title: Int, val description: Int, val emoji: String)
-
-private val features = listOf(
-    Feature(R.string.feature_recognition, R.string.feature_recognition_desc, "📷"),
-)
+private data class Feature(val title: Int, val description: Int, val emoji: String, val open: () -> Unit)
 
 @Composable
-fun HomeScreen(onOpenSettings: () -> Unit, onLogin: () -> Unit, onRecognize: () -> Unit) {
+fun HomeScreen(onOpenSettings: () -> Unit, onLogin: () -> Unit, onRecognize: () -> Unit, onPokedex: () -> Unit) {
+    val features = listOf(
+        Feature(R.string.feature_recognition, R.string.feature_recognition_desc, "📷", onRecognize),
+        Feature(R.string.feature_pokedex, R.string.feature_pokedex_desc, "📕", onPokedex),
+    )
     val session by TcgSession.state.collectAsState()
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -95,7 +95,7 @@ fun HomeScreen(onOpenSettings: () -> Unit, onLogin: () -> Unit, onRecognize: () 
                         if (session is SessionState.LoggedOut) {
                             onLogin()
                         } else {
-                            onRecognize()
+                            feature.open()
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),

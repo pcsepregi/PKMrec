@@ -38,8 +38,28 @@ data class TcgCard(
     val imageUrl: String?,
     val regionId: Int?,
     val variants: List<CardVariant>,
+    /** Energy type(s) of a Pokémon card, e.g. "Fire"; read from the card page, empty if not loaded. */
+    val energyTypes: List<String> = emptyList(),
+    val hp: Int? = null,
 ) {
     val url: String get() = Tcg.BASE_URL + path
+}
+
+/** What the card page adds to a search result row. */
+data class CardDetails(val energyTypes: List<String>, val hp: Int?)
+
+/** Parses a card page (`/cards/<id>/<slug>`). */
+object CardPageParser {
+
+    /** Header of the card page: `#card-hit-points-value` and the `#card-energy-types` symbols (alt = "Fire"). */
+    fun parseDetails(html: String): CardDetails {
+        val doc = Jsoup.parse(html)
+        val types = doc.select("#card-energy-types img").mapNotNull { img ->
+            img.attr("alt").ifBlank { img.attr("title") }.trim().ifEmpty { null }
+        }.distinct()
+        val hp = doc.selectFirst("#card-hit-points-value")?.text()?.trim()?.toIntOrNull()
+        return CardDetails(types, hp)
+    }
 }
 
 /**

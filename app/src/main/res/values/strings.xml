@@ -8,6 +8,8 @@
     <string name="home_byline">PallR - %1$s</string>
     <string name="feature_recognition">Felismerés</string>
     <string name="feature_recognition_desc">Fotózd le a kártyát, és megmondom, megvan-e</string>
+    <string name="feature_pokedex">Pokédex</string>
+    <string name="feature_pokedex_desc">Írd be egy Pokémon nevét, és megmutatom, melyik kártyája van a Pokedex listádban</string>
     <string name="settings">Beállítások</string>
     <string name="coming_soon">Hamarosan érkezik</string>
 
@@ -76,6 +78,21 @@
     <string name="verdict_owned">MEGVAN</string>
     <string name="verdict_not_owned">NINCS MEG</string>
 
+    <!-- Pokédex search -->
+    <string name="pokedex_title">Pokédex</string>
+    <string name="pokedex_name_hint">Pokémon neve vagy száma</string>
+    <string name="pokedex_search_help">Írd be angolul a nevét (elírva vagy magyarosan is jó, pl. Pikacsu, Eve), vagy a Pokédex számát (pl. 133). Koppints a jó névre.</string>
+    <string name="pokedex_no_match">Nem találok ilyen nevű Pokémont. Próbáld másképp írni.</string>
+    <string name="pokedex_new_search">Új keresés</string>
+    <string name="pokedex_none_in_list">Ebből a Pokémonból még nincs kártya a Pokedex listádban.</string>
+    <string name="pokedex_type">Típus</string>
+    <string name="pokedex_hp">HP</string>
+    <string name="pokedex_set">Szett</string>
+    <string name="pokedex_number">Szám</string>
+    <string name="pokedex_rarity">Ritkaság</string>
+    <string name="pokedex_variants">Változatok a gyűjteményedben</string>
+    <string name="pokedex_owned_count">✓ %1$d db</string>
+
     <!-- Settings -->
     <string name="back">Vissza</string>
     <string name="settings_version">Verzió</string>
@@ -89,6 +106,13 @@
     <string name="settings_pokedex_list_saved">Lista elmentve</string>
     <string name="settings_pokedex_list_invalid">Ez nem egy TCG Collector lista linkje</string>
     <string name="settings_pokedex_list_open">Lista megnyitása</string>
+    <string name="settings_names">Pokémon névlista</string>
+    <string name="settings_names_desc">A Pokédex keresés ebből a listából javítja a beírt nevet. Ha kijön egy új generáció, frissítsd a TCG Collectorról.</string>
+    <string name="settings_names_count">Pokémonok a listában: %1$d</string>
+    <string name="settings_names_refresh">Pokémon névlista frissítése</string>
+    <string name="settings_names_refreshing">Frissítés…</string>
+    <string name="settings_names_refreshed">Névlista frissítve: %1$d Pokémon</string>
+    <string name="settings_names_failed">Nem sikerült frissíteni a névlistát. %1$s</string>
 
     <!-- Error log -->
     <string name="settings_error_log">Hibanapló</string>

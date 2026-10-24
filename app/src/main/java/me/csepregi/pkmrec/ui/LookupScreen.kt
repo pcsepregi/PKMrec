@@ -52,7 +52,7 @@ import me.csepregi.pkmrec.tcg.TcgErrorKind
 import me.csepregi.pkmrec.update.UpdateManager
 
 /** Card proportions for images. */
-private const val CARD_IMAGE_ASPECT = 63f / 88f
+internal const val CARD_IMAGE_ASPECT = 63f / 88f
 
 @Composable
 fun LookupScreen(onRescan: () -> Unit, onHome: () -> Unit, onLogin: () -> Unit) {
@@ -286,11 +286,11 @@ private fun CardHeader(card: TcgCard, large: Boolean = false) {
     }
 }
 
-private fun numberAndRarity(card: TcgCard): String =
+internal fun numberAndRarity(card: TcgCard): String =
     listOfNotNull(card.number.ifBlank { null }, card.rarity).joinToString(" · ")
 
 @Composable
-private fun CardImage(card: TcgCard, width: Int) {
+internal fun CardImage(card: TcgCard, width: Int) {
     Box(
         modifier = Modifier
             .width(width.dp)

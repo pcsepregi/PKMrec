@@ -24,11 +24,13 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,9 +40,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import me.csepregi.pkmrec.BuildConfig
 import me.csepregi.pkmrec.R
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import me.csepregi.pkmrec.diagnostics.ErrorLog
+import me.csepregi.pkmrec.pokedex.NameListRefreshResult
+import me.csepregi.pkmrec.pokedex.PokemonNames
 import me.csepregi.pkmrec.tcg.PokedexList
 import me.csepregi.pkmrec.tcg.SessionState
+import me.csepregi.pkmrec.tcg.TcgError
 import me.csepregi.pkmrec.tcg.TcgSession
 import me.csepregi.pkmrec.update.UpdateManager
 import me.csepregi.pkmrec.update.UpdateState
@@ -173,6 +181,43 @@ fun SettingsScreen(onBack: () -> Unit, onLogin: () -> Unit) {
                 TextButton(onClick = {
                     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PokedexList.listUrl(context))))
                 }) { Text(stringResource(R.string.settings_pokedex_list_open)) }
+            }
+
+            HorizontalDivider()
+
+            Section(title = stringResource(R.string.settings_names)) {
+                var count by remember { mutableIntStateOf(0) }
+                var refreshing by remember { mutableStateOf(false) }
+                var error by remember { mutableStateOf<TcgError?>(null) }
+                val scope = rememberCoroutineScope()
+                LaunchedEffect(Unit) { count = withContext(Dispatchers.IO) { PokemonNames.all(context).size } }
+                Text(
+                    stringResource(R.string.settings_names_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(stringResource(R.string.settings_names_count, count), style = MaterialTheme.typography.bodyLarge)
+                Button(
+                    onClick = {
+                        refreshing = true
+                        error = null
+                        scope.launch {
+                            when (val result = PokemonNames.refresh(context)) {
+                                is NameListRefreshResult.Done -> {
+                                    count = result.count
+                                    Toast.makeText(context, context.getString(R.string.settings_names_refreshed, result.count), Toast.LENGTH_SHORT).show()
+                                }
+                                is NameListRefreshResult.Error -> error = result.error
+                            }
+                            refreshing = false
+                        }
+                    },
+                    enabled = !refreshing,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(if (refreshing) R.string.settings_names_refreshing else R.string.settings_names_refresh)) }
+                error?.let {
+                    Text(stringResource(R.string.settings_names_failed, tcgErrorText(it)), color = MaterialTheme.colorScheme.error)
+                }
             }
         }
     }

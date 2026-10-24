@@ -1,4 +1,4 @@
-# PKMrec – handoff notes (state on 2026-10-24, v0.6.0)
+# PKMrec – handoff notes (state on 2026-10-24, v0.7.0)
 
 Notes for continuing development in a new chat. Read together with `README.md`, `doc/PLAN.md` and `CHANGELOG.md`.
 
@@ -17,6 +17,7 @@ Notes for continuing development in a new chat. Read together with `README.md`, 
 - `app/src/main/java/me/csepregi/pkmrec/`
   - `update/` – self-update from GitHub Releases (check, download, SHA-256, PackageInstaller)
   - `tcg/` – TCG Collector: session/cookies, appState extraction, search parsing, card matching, Pokedex list
+  - `pokedex/` – Pokémon name list (bundled `assets/pokemon_names.tsv`, refreshable from TCG Collector) and name correction
   - `recognition/` – OCR analyzer, card text parser, frame voting (stabilizer)
   - `ui/` – screens: Home, Settings, Login (WebView), Camera, Lookup (candidates, variants, verdict, Pokedex section)
 - Unit tests in `app/src/test/...` (parser, stabilizer, matcher, search page parsing, Pokédex entries, update logic).
@@ -46,6 +47,7 @@ Notes for continuing development in a new chat. Read together with `README.md`, 
 - Card search: `/cards?cardSearch=<number/total>&displayAs=list` (name, set name, set code, number, rarity per row: `div.card-list-item[data-card-id]`); same with `displayAs=images` for images. Results include other regions → filter region 1.
 - Matching: same number (leading zeros ignored) → set code (exact, then loose: glued regulation mark "OMEG", O/0, one wrong char) → fuzzy name → else candidate picker (with "Egyik sem").
 - Pokedex list: card page footer links its Pokédex entries (`/pokedex/<n>/<slug>/intl`); `.../pokedex/<n>/<slug>/intl?inUserCardList=<listId>&displayAs=list` returns exactly the list's card for that Pokémon. Default list ID 65678 ("Pokedex"), changeable in Settings; lookup can be switched off in Settings.
+- Pokédex search (0.7.0): names come from `/pokedex` (`a.pokedex-grid-item-name`, href `/pokedex/<n>/<slug>`; 1025 entries in Oct 2026). Lookup goes straight to `/pokedex/<n>/<slug>/intl?inUserCardList=<listId>`; the card page header gives the energy type (`#card-energy-types img[alt]`) and HP (`#card-hit-points-value`). Name correction (`NameMatcher`): accents/punctuation dropped, Hungarian spelling (dzs→j, cs→ch, sz→s), prefix match, then edit distance with transpositions.
 - For inspecting pages, Pali can log in to TCG Collector in the Claude desktop app's built-in browser; Claude then reads pages there (read-only).
 
 ## Recognition pipeline and lessons learned
@@ -59,6 +61,10 @@ Notes for continuing development in a new chat. Read together with `README.md`, 
 ## 0.6.0 – stability (done)
 
 Errors are classified in `tcg/TcgErrors.kt` (`TcgError.of(e)`) and shown via `ui/ErrorText.kt`; a page without appState or with unreadable result rows throws `PageFormatException` ("site changed"). Local error log: `diagnostics/ErrorLog.kt` (app private file, copy button in settings, crash handler installed in `PkmrecApp`). Camera opens at 2x and shows start / camera-state errors with a retry button.
+
+## 0.7.0 – Pokédex search (done)
+
+Home screen "Pokédex" button → `PokedexSearchScreen` (suggestions while typing) → `PokedexResultScreen` (list card with image, type, HP, set, number, rarity, variants). Settings: "Pokémon névlista frissítése". Decisions by Pali: only the Pokedex list, English names only, design to be polished in a later release.
 
 ## Backlog
 
