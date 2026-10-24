@@ -141,6 +141,7 @@ private fun FeatureButton(feature: Feature, onClick: () -> Unit, modifier: Modif
             .clickable(onClick = onClick),
     ) {
         val compact = maxHeight < 130.dp
+        val iconSize = minOf(92.dp, maxHeight - 20.dp).coerceAtLeast(40.dp)
         Canvas(modifier = Modifier.fillMaxSize()) { drawFaintCard(Color.White.copy(alpha = 0.10f)) }
         Row(
             modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
@@ -151,7 +152,7 @@ private fun FeatureButton(feature: Feature, onClick: () -> Unit, modifier: Modif
                 painter = painterResource(feature.icon),
                 contentDescription = null,
                 modifier = Modifier
-                    .size(minOf(92.dp, maxHeight - 20.dp).coerceAtLeast(40.dp))
+                    .size(iconSize)
                     .clip(RoundedCornerShape(18.dp))
                     .border(1.5.dp, Neon.Glow.copy(alpha = 0.7f), RoundedCornerShape(18.dp)),
             )
