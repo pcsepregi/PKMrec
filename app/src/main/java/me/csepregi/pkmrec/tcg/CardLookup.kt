@@ -59,7 +59,7 @@ object CardLookup {
      * Finds a card by its name alone (Tömeges eladás, number unreadable): only cards the user owns
      * count, as only those can be sold, best name match first. Several owned prints → the user picks.
      */
-    suspend fun lookupOwnedByName(context: Context, name: String): LookupOutcome = withContext(Dispatchers.IO) {
+    suspend fun lookupOwnedByName(context: Context, name: String, setCode: String? = null): LookupOutcome = withContext(Dispatchers.IO) {
         try {
             val client = TcgSession.client(context)
             val cards = mutableListOf<TcgCard>()
@@ -76,7 +76,7 @@ object CardLookup {
                 if (!hasMore || found.isEmpty()) break
                 page++
             }
-            LookupOutcome.Found(withImages(client, name, ownedByName(name, cards), pageOfCard))
+            LookupOutcome.Found(withImages(client, name, ownedByName(name, cards, setCode), pageOfCard))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -85,8 +85,11 @@ object CardLookup {
         }
     }
 
-    /** The English cards the user owns whose name contains [name] or is close to it, best match first. */
-    internal fun ownedByName(name: String, cards: List<TcgCard>): MatchResult {
+    /**
+     * The English cards the user owns whose name contains [name] or is close to it, best match
+     * first; only those of [setCode] when the set code was read and some match it.
+     */
+    internal fun ownedByName(name: String, cards: List<TcgCard>, setCode: String? = null): MatchResult {
         val key = name.lowercase().filter { it.isLetterOrDigit() }
         val owned = cards.distinctBy { it.id }
             .filter { it.regionId == null || it.regionId == TcgIds.REGION_INTERNATIONAL }
@@ -95,6 +98,10 @@ object CardLookup {
                 card.name.lowercase().filter { it.isLetterOrDigit() }.contains(key) || CardMatcher.nameSimilarity(name, card.name) >= 0.75
             }
             .sortedByDescending { CardMatcher.nameSimilarity(name, it.name) }
+            .let { all ->
+                if (setCode == null) all
+                else all.filter { it.expansionCode.equals(setCode, ignoreCase = true) || CardMatcher.codeMatchesLoosely(setCode, it.expansionCode) }.ifEmpty { all }
+            }
         return when (owned.size) {
             0 -> MatchResult.NotFound
             1 -> MatchResult.Single(owned.first())

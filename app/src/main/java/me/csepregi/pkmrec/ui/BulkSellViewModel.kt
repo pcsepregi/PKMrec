@@ -182,14 +182,14 @@ class BulkSellViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun lookup(reading: CardReading): LookupOutcome {
         val app = getApplication<Application>()
         val name = reading.name?.takeIf { it.isNotBlank() }
-        if (reading.isNameOnly) return name?.let { CardLookup.lookupOwnedByName(app, it) } ?: LookupOutcome.Found(MatchResult.NotFound)
+        if (reading.isNameOnly) return name?.let { CardLookup.lookupOwnedByName(app, it, reading.setCode) } ?: LookupOutcome.Found(MatchResult.NotFound)
         val outcome = CardLookup.lookup(app, reading)
         if (name == null || outcome !is LookupOutcome.Found) return outcome
         return when (val match = outcome.match) {
-            MatchResult.NotFound -> CardLookup.lookupOwnedByName(app, name)
+            MatchResult.NotFound -> CardLookup.lookupOwnedByName(app, name, reading.setCode)
             // The number found a card with another name: one of the two was misread, so offer both.
             is MatchResult.Single -> if (namesAgree(name, match.card.name)) outcome else {
-                val byName = (CardLookup.lookupOwnedByName(app, name) as? LookupOutcome.Found)?.match
+                val byName = (CardLookup.lookupOwnedByName(app, name, reading.setCode) as? LookupOutcome.Found)?.match
                 val others = when (byName) {
                     is MatchResult.Single -> listOf(byName.card)
                     is MatchResult.Ambiguous -> byName.candidates

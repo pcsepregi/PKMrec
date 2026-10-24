@@ -99,8 +99,8 @@ class MultiCardLayoutTest {
     }
 
     /** OCR lines of Pali's five table photos (2.0.1 debug report): "x,y hH angle° text" per line. */
-    private fun tablePhotos(): List<List<PhotoLine>> {
-        val text = javaClass.getResourceAsStream("/bulk-sell/table-photos-2.0.1.txt")!!.bufferedReader().readText()
+    private fun tablePhotos(file: String = "table-photos-2.0.1.txt"): List<List<PhotoLine>> {
+        val text = javaClass.getResourceAsStream("/bulk-sell/$file")!!.bufferedReader().readText()
         val pattern = Regex("""^(\d+),(\d+) h(\d+) (-?\d+)° (.*)$""")
         val photos = mutableListOf<MutableList<PhotoLine>>()
         text.lines().forEach { l ->
@@ -114,7 +114,7 @@ class MultiCardLayoutTest {
     }
 
     private val allNames = PokemonNameFinder(
-        listOf("Garchomp", "Staraptor", "Chandelure", "Cetitan", "Zekrom", "Talonflame", "Delibird", "Terapagos", "Pikachu", "Throh", "Gabite"),
+        listOf("Shroodle", "Chikorita", "Tangrowth", "Mantine", "Miltank", "Meganium", "Garchomp", "Staraptor", "Chandelure", "Cetitan", "Zekrom", "Talonflame", "Delibird", "Terapagos", "Pikachu", "Throh", "Gabite"),
     )
 
     @Test
@@ -142,5 +142,34 @@ class MultiCardLayoutTest {
         listOf("Philippe", "Counter Gain", "TRAINER", "your turn").forEach {
             assertFalse(it, MultiCardLayout.isTrainerLabel(it))
         }
+    }
+
+    @Test
+    fun `Mega Evolution photo - set codes glued to other letters, unreadable number, titles of neighbouring cards`() {
+        val found = MultiCardLayout.cards(tablePhotos("table-photo-mega-2.0.2.txt")[0], allNames, setOf("MEG", "PBL", "ASC", "SVI", "30C"))
+            .map { "${it.reading.display}|${it.reading.name}" }
+        assertEquals(
+            setOf(
+                "Premium Power Pro|Premium Power Pro",
+                "OMEG 091/132|Shroodle",
+                "Chikorita (MEG)|Chikorita",
+                "Mantine|Mantine",
+                "MEG 007/132|Tangrowth",
+                "MEG 106/132|Miltank",
+                "106/132|Miltank",
+                "MEG 010/132|Meganium",
+            ),
+            found.toSet(),
+        )
+        assertEquals(8, found.size)
+    }
+
+    @Test
+    fun `set codes are found inside OCR noise`() {
+        val codes = setOf("MEG", "PBL", "ASC")
+        assertEquals("MEG", MultiCardLayout.codeIn("IMEGB 007", codes))
+        assertEquals("MEG", MultiCardLayout.codeIn("0MEG D O10", codes))
+        assertEquals("ASC", MultiCardLayout.codeIn("wASCM 259", codes))
+        assertEquals(null, MultiCardLayout.codeIn("Illus. REND", codes))
     }
 }

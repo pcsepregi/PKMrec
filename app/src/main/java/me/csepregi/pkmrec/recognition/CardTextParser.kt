@@ -41,7 +41,7 @@ data class CardReading(
 
     /** Human-readable form, e.g. "PAL 123/193" or "SVP 045"; the name when only that was read. */
     val display: String
-        get() = if (isNameOnly) name.orEmpty()
+        get() = if (isNameOnly) listOfNotNull(name, setCode?.let { "($it)" }).joinToString(" ")
         else listOfNotNull(setCode, if (total != null) "$number/$total" else number).joinToString(" ")
 }
 

@@ -5,8 +5,8 @@ import org.junit.Test
 
 class OwnedByNameTest {
 
-    private fun card(id: Int, name: String, owned: Int, regionId: Int = TcgIds.REGION_INTERNATIONAL) =
-        TcgCard(id, name, "Set", "SET", "001/100", path = "/cards/$id/x", imageUrl = null, regionId = regionId, variants = listOf(CardVariant(1, "Holo", owned, 0)))
+    private fun card(id: Int, name: String, owned: Int, regionId: Int = TcgIds.REGION_INTERNATIONAL, code: String = "SET") =
+        TcgCard(id, name, "Set", code, "001/100", path = "/cards/$id/x", imageUrl = null, regionId = regionId, variants = listOf(CardVariant(1, "Holo", owned, 0)))
 
     @Test
     fun `only owned English cards with the name count`() {
@@ -28,5 +28,12 @@ class OwnedByNameTest {
     @Test
     fun `nothing owned is not found`() {
         assertEquals(MatchResult.NotFound, CardLookup.ownedByName("Zekrom", listOf(card(1, "Zekrom", owned = 0))))
+    }
+
+    @Test
+    fun `a set code read on the card narrows the owned prints`() {
+        val cards = listOf(card(1, "Chikorita", owned = 1, code = "MEG"), card(2, "Chikorita", owned = 1, code = "SSP"))
+        assertEquals(MatchResult.Single(cards[0]), CardLookup.ownedByName("Chikorita", cards, "MEG"))
+        assertEquals(MatchResult.Ambiguous(cards), CardLookup.ownedByName("Chikorita", cards, "PAL"))
     }
 }

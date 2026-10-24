@@ -40,6 +40,7 @@ object MultiCardReader {
     data class PhotoReading(val cards: List<MultiCardLayout.Found>, val lines: List<PhotoLine>)
 
     suspend fun read(context: Context, photo: Uri, names: PokemonNameFinder?): PhotoReading = withContext(Dispatchers.IO) {
+        val setCodes = SetSymbols.index(context).entries.mapNotNull { it.code?.uppercase() }.toSet()
         val bitmap = decode(context, photo)
         val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
         try {
@@ -57,7 +58,7 @@ object MultiCardReader {
                 }
             }
             val distinct = MultiCardLayout.distinctLines(lines)
-            PhotoReading(MultiCardLayout.cards(distinct, names), distinct)
+            PhotoReading(MultiCardLayout.cards(distinct, names, setCodes), distinct)
         } finally {
             recognizer.close()
             bitmap.recycle()

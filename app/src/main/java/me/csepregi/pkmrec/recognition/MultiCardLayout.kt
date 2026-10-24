@@ -130,10 +130,19 @@ object MultiCardLayout {
      * The cards in a photo's lines: every card number marks a card; a card name outside every
      * numbered card (its number unreadable) marks a card found by name.
      */
-    fun cards(lines: List<PhotoLine>, names: PokemonNameFinder?): List<Found> {
-        val anchors = lines.mapNotNull { line -> numberOf(line)?.let { Found(it, line) } }
+    fun cards(lines: List<PhotoLine>, names: PokemonNameFinder?, setCodes: Set<String> = emptySet()): List<Found> {
+        val codes = setCodes.filter { PRINTED_CODE.matches(it) }.toSet()
+        val anchors = lines.mapNotNull { line -> (numberOf(line) ?: codeOnlyNumberOf(line, codes))?.let { Found(it, line) } }
         val usual = if (lines.isEmpty()) 0f else lines.map { it.height }.sorted()[lines.size / 2]
-        val claimed = mutableSetOf<PhotoLine>()
+        // A card's possible titles and how well each fits (lower is better).
+        class Numbered(
+            val anchor: Found,
+            val reading: CardReading,
+            val area: List<OcrLine>,
+            val areaLines: List<PhotoLine>,
+            val titles: List<Triple<PhotoLine, String, Int>>,
+        )
+
         val numbered = distinct(anchors).map { anchor ->
             val number = anchor.line
             // Every line seen level with the card, as if the card lay straight.
@@ -142,18 +151,73 @@ object MultiCardLayout {
                 .map { it to it.inFrame(number.cx, number.cy, number.angle) } + (number to numberLine)
             val inArea = cardArea(numberLine, framed.map { it.second }).toSet()
             val areaLines = framed.filter { it.second in inArea }
-            claimed += areaLines.map { it.first }
             val area = inArea.toList()
             val parsed = CardTextParser.parseWithLine(area, numberLine.bottom, names)
-            val reading = if (parsed != null && parsed.numberLine == numberLine) parsed.reading else anchor.reading
-            // The card's title: a name line nearest to where the top of the card is expected.
+            val read = if (parsed != null && parsed.numberLine == numberLine) parsed.reading else anchor.reading
+            // The set code is often glued to the regulation mark or "EN" ("DMEG", "IMEGB"): find it among the known codes.
+            val reading = if (read.setCode != null) read
+            else read.copy(setCode = codeNear(numberLine, areaLines.map { it.second }, codes))
+            // The title is at the top of the card, starting about where the number starts.
             val titleY = numberLine.bottom - (CARD_HEIGHTS - 3) * numberLine.height
-            val title = areaLines.mapNotNull { (line, level) -> nameOf(line, lines, names, usual)?.let { it to level } }
-                .minByOrNull { (_, level) -> abs((level.top + level.bottom) / 2 - titleY) }?.first
-            Found(reading.copy(name = title ?: reading.name ?: CardTextParser.findName(area, names)), number)
+            val titles = areaLines.mapNotNull { (line, level) ->
+                nameOf(line, lines, names, usual)?.let { name ->
+                    Triple(line, name, abs((level.top + level.bottom) / 2 - titleY) + abs(level.left - numberLine.left))
+                }
+            }
+            Numbered(anchor, reading, area, areaLines.map { it.first }, titles)
+        }
+
+        // Each name line is the title of at most one card: best fits first.
+        val titleOf = mutableMapOf<Numbered, Pair<PhotoLine, String>>()
+        val usedTitles = mutableSetOf<PhotoLine>()
+        numbered.flatMap { card -> card.titles.map { card to it } }.sortedBy { it.second.third }.forEach { (card, t) ->
+            if (card !in titleOf && t.first !in usedTitles) {
+                titleOf[card] = t.first to t.second
+                usedTitles += t.first
+            }
+        }
+        // The other lines of a numbered card belong to it, but a name line that is no card's title is
+        // a card of its own (the estimated areas overlap neighbours), unless it repeats its card's title.
+        val nameLines = numbered.flatMap { card -> card.titles.map { it.first } }.toSet()
+        val repeated = numbered.flatMap { card -> card.titles.filter { it.second == titleOf[card]?.second }.map { it.first } }
+        val claimed = numbered.flatMap { card -> card.areaLines.filter { it !in nameLines } }.toSet() + usedTitles + repeated
+        val numberedCards = numbered.map { card ->
+            val name = titleOf[card]?.second ?: card.reading.name ?: CardTextParser.findName(card.area, names)
+            Found(card.reading.copy(name = name), card.anchor.line)
         }
         val named = nameCards(lines.filter { it !in claimed }, lines, names, usual)
-        return (numbered + named).sortedWith(compareBy<Found>({ rowOf(it.line) }, { it.line.cx }))
+        return (numberedCards + named).sortedWith(compareBy<Found>({ rowOf(it.line) }, { it.line.cx }))
+    }
+
+    /** Set codes printed on cards (Scarlet & Violet on): three letters. */
+    private val PRINTED_CODE = Regex("""^[A-Z]{3}$""")
+
+    /** A slash followed by a total ("o0a/ 132"): the bottom line of a card whose number is unreadable. */
+    private val SLASH_TOTAL = Regex("""/\s*[0-9OIL]{2,3}\b""", RegexOption.IGNORE_CASE)
+
+    /**
+     * A card's bottom line with a readable set code but an unreadable number ("D MEG o0a/ 132"):
+     * marks a card found by name, with the code to narrow the name search.
+     */
+    private fun codeOnlyNumberOf(line: PhotoLine, codes: Set<String>): CardReading? {
+        if (!SLASH_TOTAL.containsMatchIn(line.text)) return null
+        val code = codeIn(line.text, codes) ?: return null
+        return CardReading(code, "", null)
+    }
+
+    /** The known set code in [text], also when glued to other letters ("DMEG", "IMEGB", "0MEG", "MEGN168/132"). */
+    internal fun codeIn(text: String, codes: Set<String>): String? {
+        val words = text.uppercase().split(Regex("[^A-Z]+")).filter { it.length in 3..5 }
+        words.firstOrNull { it in codes }?.let { return it }
+        return words.firstNotNullOfOrNull { w -> w.windowed(3).firstOrNull { it in codes } }
+    }
+
+    /** A set code on the number line or a line beside it (same height, to the left). */
+    private fun codeNear(numberLine: OcrLine, area: List<OcrLine>, codes: Set<String>): String? {
+        if (codes.isEmpty()) return null
+        val h = numberLine.height.coerceAtLeast(1)
+        val beside = area.filter { it !== numberLine && abs(it.bottom - numberLine.bottom) <= 2 * h && it.right <= numberLine.right + h }
+        return (listOf(numberLine) + beside).firstNotNullOfOrNull { codeIn(it.text.substringBefore('/'), codes) }
     }
 
     /** The card number on one line; numbers whose total was cut off ("110/01") are not trusted. */
@@ -256,7 +320,7 @@ object MultiCardLayout {
     /** One anchor per number: number lines close together (split or read twice) are one card. */
     private fun distinct(anchors: List<Found>): List<Found> {
         val kept = mutableListOf<Found>()
-        anchors.sortedWith(compareByDescending<Found> { it.reading.setCode != null }.thenByDescending { it.line.text.length }).forEach { a ->
+        anchors.sortedWith(compareByDescending<Found> { !it.reading.isNameOnly }.thenByDescending { it.reading.setCode != null }.thenByDescending { it.line.text.length }).forEach { a ->
             val near = kept.any { k ->
                 val h = max(a.line.height, k.line.height).coerceAtLeast(1f)
                 hypot(a.line.cx - k.line.cx, a.line.cy - k.line.cy) < 6 * h

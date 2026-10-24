@@ -6,6 +6,12 @@ Release notes shown in the app's update dialog are taken from the matching secti
 
 - Enable R8 code shrinking for a smaller APK.
 
+## 2.0.3
+
+- Tömeges eladás: the set code is now found also when OCR glues it to the regulation mark or "EN" ("DMEG", "IMEGB", "0MEG"), so a card number finds the one card of that set instead of a list to pick from.
+- A card whose number is unreadable but whose set code is readable ("D MEG o0a/ 132") is looked up by its name among your cards of that set.
+- Each name on the photo is the title of one card only: neighbouring cards no longer take each other's names, and a name next to a numbered card is no longer lost.
+
 ## 2.0.2
 
 - Tömeges eladás: on table photos most card numbers are too small or shiny to read, but the card names are readable. A card whose number cannot be read is now found by its name: Pokémon names (also when "BASIC"/"STAGE", HP or "ex" is glued to them) and trainer names under the "Supporter" / "Item" / "Pokémon Tool" label. Only the cards in your collection with that name are offered; with several, you pick.
