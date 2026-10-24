@@ -4,9 +4,13 @@
 Writes <out>/index.tsv (id, set code, name per line) and <out>/<id>.png (greyscale with alpha,
 64 px tall when Pillow is available). The app compares these with the symbol printed on a card.
 
+A copy of the symbols is kept in git (refreshed by the "Set symbols" workflow). Fresh downloads
+are merged into it: a set whose symbol cannot be downloaded keeps its copy from git, so a
+pokemontcg.io outage does not break the build.
+
 Usage: fetch-set-symbols.py <out dir> [--min N]
-Without --min, problems are reported as warnings and the build goes on without (some) symbols;
-with --min, fewer than N symbols fails the step (used for releases).
+Download problems are reported as warnings; with --min, fewer than N symbols in the result
+(downloaded plus kept from git) fails the step (used for releases).
 """
 import concurrent.futures
 import io
@@ -26,16 +30,18 @@ except ImportError:
     Image = None
 
 
-def get(url, attempts=3):
+def get(url, attempts=3, wait=2):
+    """Retries with doubling waits: wait, 2*wait, 4*wait, ..."""
     for attempt in range(attempts):
         try:
             request = urllib.request.Request(url, headers={"User-Agent": "PKMrec-build"})
             with urllib.request.urlopen(request, timeout=60) as response:
                 return response.read()
-        except Exception:
+        except Exception as e:
             if attempt == attempts - 1:
                 raise
-            time.sleep(2 * (attempt + 1))
+            print(f"{url}: {e}, retrying in {wait * 2 ** attempt} s")
+            time.sleep(wait * 2 ** attempt)
 
 
 def shrink(data):
@@ -60,26 +66,43 @@ def fetch(out_dir, card_set):
     return "\t".join([set_id, (card_set.get("ptcgoCode") or "").strip(), name])
 
 
+def read_index(out_dir):
+    """The rows already in <out>/index.tsv (the copy from git) whose symbol file exists, by set id."""
+    rows = {}
+    try:
+        with open(os.path.join(out_dir, "index.tsv"), encoding="utf-8") as f:
+            for line in f:
+                row = line.rstrip("\n")
+                set_id = row.split("\t")[0]
+                if row and os.path.exists(os.path.join(out_dir, set_id + ".png")):
+                    rows[set_id] = row
+    except FileNotFoundError:
+        pass
+    return rows
+
+
 def main():
     out_dir = sys.argv[1]
     minimum = int(sys.argv[sys.argv.index("--min") + 1]) if "--min" in sys.argv else 0
     os.makedirs(out_dir, exist_ok=True)
-    rows = []
+    rows = read_index(out_dir)
+    kept = len(rows)
+    downloaded = 0
     try:
-        sets = [s for s in json.loads(get(API))["data"] if s.get("images", {}).get("symbol")]
+        sets = [s for s in json.loads(get(API, attempts=5, wait=5))["data"] if s.get("images", {}).get("symbol")]
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
             futures = {pool.submit(fetch, out_dir, s): s["id"] for s in sets}
             for future in concurrent.futures.as_completed(futures):
                 try:
-                    rows.append(future.result())
+                    rows[futures[future]] = future.result()
+                    downloaded += 1
                 except Exception as e:
                     print(f"::warning::Set symbol {futures[future]} could not be downloaded: {e}")
     except Exception as e:
-        print(f"::warning::Set symbols could not be downloaded: {e}")
-    rows.sort()
+        print(f"::warning::Set symbols could not be downloaded, using the copy from git ({kept}): {e}")
     with open(os.path.join(out_dir, "index.tsv"), "w", encoding="utf-8") as f:
-        f.write("".join(row + "\n" for row in rows))
-    print(f"{len(rows)} set symbols in {out_dir} (Pillow: {'yes' if Image else 'no'})")
+        f.write("".join(rows[k] + "\n" for k in sorted(rows)))
+    print(f"{len(rows)} set symbols in {out_dir}: {downloaded} downloaded, {kept} were in git (Pillow: {'yes' if Image else 'no'})")
     if len(rows) < minimum:
         print(f"::error::Only {len(rows)} set symbols, at least {minimum} needed")
         sys.exit(1)

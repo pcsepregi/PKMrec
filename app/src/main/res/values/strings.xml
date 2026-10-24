@@ -144,6 +144,9 @@
     <string name="cardmarket_failed_other">Nem sikerült lekérni az árat: %1$s</string>
     <string name="cardmarket_open">Megnyitás a Cardmarketen</string>
     <string name="cardmarket_refresh">Frissítés</string>
+    <string name="cardmarket_research">Újrakeresés</string>
+    <string name="cardmarket_stale">Régebbi ár (%1$s).</string>
+    <string name="cardmarket_rate_old">Régi árfolyam (EKB, %1$s)</string>
 
     <!-- Error log -->
     <string name="settings_error_log">Hibanapló</string>

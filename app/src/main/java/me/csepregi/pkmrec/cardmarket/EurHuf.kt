@@ -8,6 +8,7 @@ import kotlinx.coroutines.launch
 import me.csepregi.pkmrec.diagnostics.ErrorLog
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.time.LocalDate
 import java.util.concurrent.TimeUnit
 import kotlin.math.roundToLong
 
@@ -24,6 +25,7 @@ object EurHuf {
     private const val KEY_DATE = "date"
     private const val KEY_CHECKED = "checked"
     private const val REFRESH_MS = 6 * 60 * 60 * 1000L
+    private const val STALE_DAYS = 7L
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -33,6 +35,15 @@ object EurHuf {
     /** The last downloaded rate (forints per euro), or null before the first download. */
     fun rate(context: Context): Double? =
         prefs(context).getFloat(KEY_RATE, 0f).takeIf { it > 0f }?.toDouble()
+
+    /** The ECB date of [rate] ("2026-10-23"), or null before the first download. */
+    fun rateDate(context: Context): String? = prefs(context).getString(KEY_DATE, null)?.takeIf { it.isNotEmpty() }
+
+    /** A rate whose ECB date is more than [STALE_DAYS] before [today] (or unreadable) should show its date. */
+    fun isOld(date: String?, today: LocalDate): Boolean {
+        val day = runCatching { LocalDate.parse(date) }.getOrNull() ?: return true
+        return day.isBefore(today.minusDays(STALE_DAYS))
+    }
 
     fun refresh(context: Context) {
         val appContext = context.applicationContext
