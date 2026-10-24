@@ -1,10 +1,12 @@
 package me.csepregi.pkmrec.sealed
 
 import android.content.Context
+import android.os.SystemClock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -38,6 +40,14 @@ data class SealedRefreshProgress(
  */
 object SealedPrices {
 
+    /**
+     * Pause between two Cardmarket pages. Loaded back to back, Cloudflare took the refresh for a
+     * robot and asked for a check every two or three products.
+     */
+    private const val PAGE_GAP_MS = 4_000L
+
+    @Volatile private var lastPage = 0L
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var job: Job? = null
 
@@ -55,7 +65,39 @@ object SealedPrices {
         if (price != null || productUrl != item.productUrl || (imageUrl != null && imageUrl != item.imageUrl)) {
             SealedInventory.setPrice(context, item.id, price ?: item.price, productUrl, imageUrl)
         }
+        val pictureUrl = imageUrl ?: item.imageUrl
+        if (pictureUrl != null && result !is CardmarketResult.Challenge && SealedImages.file(context, item) == null) {
+            downloadImage(context, item, pictureUrl)
+        }
         return result
+    }
+
+    /** Downloads the picture through the Cardmarket WebView; a failure is kept to show on the product screen. */
+    private suspend fun downloadImage(context: Context, item: SealedItem, url: String) {
+        try {
+            val image = paced { CardmarketFetcher.loadImage(context, url) }
+            SealedInventory.setImage(context, item.id, SealedImages.save(context, item.id, image), null)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: CardmarketChallengeException) {
+            // Tried again with the next refresh.
+        } catch (e: Exception) {
+            ErrorLog.log("sealed image", e, url)
+            SealedInventory.setImage(context, item.id, null, "${e.message ?: e.javaClass.simpleName} ($url)")
+        }
+    }
+
+    /** Loads a Cardmarket page, at least [PAGE_GAP_MS] after the previous one. */
+    private suspend fun fetchPage(context: Context, url: String): CardmarketPage = paced { CardmarketFetcher.load(context, url) }
+
+    private suspend fun <T> paced(block: suspend () -> T): T {
+        val wait = lastPage + PAGE_GAP_MS - SystemClock.elapsedRealtime()
+        if (wait > 0) delay(wait)
+        return try {
+            block()
+        } finally {
+            lastPage = SystemClock.elapsedRealtime()
+        }
     }
 
     /**
@@ -100,7 +142,7 @@ object SealedPrices {
         if (productUrl == null) {
             CardmarketResult.NotFound(Cardmarket.searchUrl(item.name)) to null
         } else {
-            val page = CardmarketFetcher.load(context, Cardmarket.englishOffersUrl(productUrl))
+            val page = fetchPage(context, Cardmarket.englishOffersUrl(productUrl))
             val result = CardmarketPrices.fromOffers(page, reverseHolo = false, productUrl = productUrl)
             if (result is CardmarketResult.Failed) ErrorLog.log("sealed price", null, "${result.detail} for ${item.name}")
             result to page.imageUrl
@@ -119,9 +161,9 @@ object SealedPrices {
      * does not land on the product, searches by name and picks the result with the same name.
      */
     private suspend fun findProduct(context: Context, item: SealedItem): String? {
-        val direct = CardmarketFetcher.load(context, Cardmarket.productByIdUrl(item.id))
+        val direct = fetchPage(context, Cardmarket.productByIdUrl(item.id))
         if (Cardmarket.isSealedProductPage(direct.url) && isSameProduct(direct, item)) return clean(direct.url)
-        val page = CardmarketFetcher.load(context, Cardmarket.searchUrl(item.name))
+        val page = fetchPage(context, Cardmarket.searchUrl(item.name))
         if (Cardmarket.isSealedProductPage(page.url)) return clean(page.url).takeIf { isSameProduct(page, item) }
         return pick(page.sealedLinks, item.name)?.let { clean(Cardmarket.absolute(it.href)) }
     }

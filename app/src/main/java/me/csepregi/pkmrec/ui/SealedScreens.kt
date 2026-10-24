@@ -2,6 +2,7 @@ package me.csepregi.pkmrec.ui
 
 import android.content.Intent
 import android.net.Uri
+import android.view.ViewGroup
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -48,16 +49,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.csepregi.pkmrec.R
 import me.csepregi.pkmrec.cardmarket.Cardmarket
+import me.csepregi.pkmrec.cardmarket.CardmarketFetcher
 import me.csepregi.pkmrec.cardmarket.CardmarketPrice
 import me.csepregi.pkmrec.cardmarket.CardmarketResult
 import me.csepregi.pkmrec.cardmarket.EurHuf
 import me.csepregi.pkmrec.sealed.SealedCatalog
+import me.csepregi.pkmrec.sealed.SealedImages
 import me.csepregi.pkmrec.sealed.SealedInventory
 import me.csepregi.pkmrec.sealed.SealedItem
 import me.csepregi.pkmrec.sealed.SealedMatcher
@@ -129,6 +133,8 @@ fun SealedCatalogScreen(onBack: () -> Unit, onOpenItem: (Int) -> Unit) {
                 Text(stringResource(R.string.sealed_refreshing, p.done, p.total), style = MaterialTheme.typography.bodyMedium)
                 LinearProgressIndicator(progress = { if (p.total == 0) 0f else p.done.toFloat() / p.total }, modifier = Modifier.fillMaxWidth())
                 OutlinedButton(onClick = { SealedPrices.cancel() }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.sealed_refresh_cancel)) }
+                Hint(stringResource(R.string.sealed_refresh_view_hint))
+                CardmarketLiveView()
             } else {
                 Button(
                     onClick = { SealedPrices.refreshAll(context) },
@@ -206,13 +212,35 @@ fun SealedCatalogScreen(onBack: () -> Unit, onOpenItem: (Int) -> Unit) {
     }
 }
 
+/**
+ * The WebView the refresh loads Cardmarket in, shown so that a Cloudflare check can be ticked in
+ * place: the refresh waits for it and then goes on by itself.
+ */
+@Composable
+private fun CardmarketLiveView() {
+    AndroidView(
+        modifier = Modifier.fillMaxWidth().height(260.dp).clip(RoundedCornerShape(12.dp)),
+        factory = { ctx ->
+            CardmarketFetcher.view(ctx).also { view ->
+                (view.parent as? ViewGroup)?.removeView(view)
+                view.settings.blockNetworkImage = false
+            }
+        },
+        onRelease = { view ->
+            (view.parent as? ViewGroup)?.removeView(view)
+            view.settings.blockNetworkImage = true
+        },
+    )
+}
+
 @Composable
 private fun OwnedRow(item: SealedItem, onClick: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (item.imageUrl != null) {
+            val image = SealedImages.file(LocalContext.current, item)
+            if (image != null) {
                 AsyncImage(
-                    model = item.imageUrl,
+                    model = image,
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
                     modifier = Modifier.size(56.dp).clip(RoundedCornerShape(8.dp)),
@@ -283,13 +311,16 @@ fun SealedItemScreen(id: Int, onBack: () -> Unit) {
                 return@Column
             }
             Text(item.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            if (item.imageUrl != null) {
+            val image = SealedImages.file(context, item)
+            if (image != null) {
                 AsyncImage(
-                    model = item.imageUrl,
+                    model = image,
                     contentDescription = item.name,
                     contentScale = ContentScale.Fit,
                     modifier = Modifier.fillMaxWidth().height(240.dp).clip(RoundedCornerShape(12.dp)),
                 )
+            } else if (item.imageError != null) {
+                Hint(stringResource(R.string.sealed_image_failed, item.imageError))
             } else {
                 Hint(stringResource(R.string.sealed_image_later))
             }
