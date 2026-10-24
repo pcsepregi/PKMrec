@@ -6,6 +6,12 @@ Release notes shown in the app's update dialog are taken from the matching secti
 
 - Enable R8 code shrinking for a smaller APK.
 
+## 1.1.1
+
+Sealed catalog improvements:
+- If Cardmarket asks for its Cloudflare check during "Árak frissítése", the list shows a button to open it. After the check the refresh continues where it stopped.
+- Product pictures from Cardmarket on the list and on the product screen. A picture is saved with the price, so it appears after the next price refresh.
+
 ## 1.1.0
 
 New: Sealed catalog, your sealed Pokémon products (ETB, booster bundle, box, tin, blister...).

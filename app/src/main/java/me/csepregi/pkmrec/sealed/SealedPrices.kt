@@ -19,8 +19,17 @@ import me.csepregi.pkmrec.cardmarket.ProductLink
 import me.csepregi.pkmrec.diagnostics.ErrorLog
 import kotlin.coroutines.cancellation.CancellationException
 
-/** Progress of "Árak frissítése": [done] of [total] products, [failed] of them without a new price. */
-data class SealedRefreshProgress(val done: Int, val total: Int, val failed: Int, val running: Boolean)
+/**
+ * Progress of "Árak frissítése": [done] of [total] products, [failed] of them without a new price.
+ * [challengeUrl]: the round stopped at a Cloudflare check that has to be opened visibly.
+ */
+data class SealedRefreshProgress(
+    val done: Int,
+    val total: Int,
+    val failed: Int,
+    val running: Boolean,
+    val challengeUrl: String? = null,
+)
 
 /**
  * Cardmarket prices of sealed products by Pali's rule: English offers, skip the 2 cheapest,
@@ -32,26 +41,34 @@ object SealedPrices {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var job: Job? = null
 
+    /** Start of the last round: a round resumed after a Cloudflare check skips what it already priced. */
+    private var roundStart = 0L
+
     private val _progress = MutableStateFlow<SealedRefreshProgress?>(null)
     val progress: StateFlow<SealedRefreshProgress?> = _progress.asStateFlow()
 
     /** Loads the price of one product and stores it; returns the result to show. */
     suspend fun refresh(context: Context, item: SealedItem): CardmarketResult {
-        val result = load(context, item)
+        val (result, imageUrl) = load(context, item)
         val productUrl = productUrlOf(result) ?: item.productUrl
         val price = toPrice(result)
-        if (price != null || productUrl != item.productUrl) {
-            SealedInventory.setPrice(context, item.id, price ?: item.price, productUrl)
+        if (price != null || productUrl != item.productUrl || (imageUrl != null && imageUrl != item.imageUrl)) {
+            SealedInventory.setPrice(context, item.id, price ?: item.price, productUrl, imageUrl)
         }
         return result
     }
 
-    /** Refreshes every owned product one after the other; runs on even if the screen is left. */
-    fun refreshAll(context: Context) {
+    /**
+     * Refreshes every owned product one after the other; runs on even if the screen is left.
+     * [resume]: continue a round stopped by a Cloudflare check, skipping products it already priced.
+     */
+    fun refreshAll(context: Context, resume: Boolean = false) {
         if (job?.isActive == true) return
         val appContext = context.applicationContext
+        if (!resume) roundStart = System.currentTimeMillis()
+        val since = roundStart
         job = scope.launch {
-            val items = SealedInventory.items.value.filter { it.count > 0 }
+            val items = SealedInventory.items.value.filter { it.count > 0 && (it.price?.time ?: 0L) < since }
             var failed = 0
             _progress.value = SealedRefreshProgress(0, items.size, 0, running = true)
             items.forEachIndexed { index, item ->
@@ -59,7 +76,10 @@ object SealedPrices {
                 if (toPrice(result) == null) failed++
                 _progress.value = SealedRefreshProgress(index + 1, items.size, failed, running = true)
                 // A Cloudflare check stops the round: every next page would ask for it too.
-                if (result is CardmarketResult.Challenge) return@launch finish(index + 1, items.size, failed)
+                if (result is CardmarketResult.Challenge) {
+                    _progress.value = SealedRefreshProgress(index + 1, items.size, failed, running = false, challengeUrl = result.url)
+                    return@launch
+                }
             }
             finish(items.size, items.size, failed)
         }
@@ -74,23 +94,24 @@ object SealedPrices {
         _progress.value = SealedRefreshProgress(done, total, failed, running = false)
     }
 
-    private suspend fun load(context: Context, item: SealedItem): CardmarketResult = try {
+    /** The price result and the product picture seen on the offers page. */
+    private suspend fun load(context: Context, item: SealedItem): Pair<CardmarketResult, String?> = try {
         val productUrl = item.productUrl ?: findProduct(context, item)
         if (productUrl == null) {
-            CardmarketResult.NotFound(Cardmarket.searchUrl(item.name))
+            CardmarketResult.NotFound(Cardmarket.searchUrl(item.name)) to null
         } else {
             val page = CardmarketFetcher.load(context, Cardmarket.englishOffersUrl(productUrl))
-            CardmarketPrices.fromOffers(page, reverseHolo = false, productUrl = productUrl).also {
-                if (it is CardmarketResult.Failed) ErrorLog.log("sealed price", null, "${it.detail} for ${item.name}")
-            }
+            val result = CardmarketPrices.fromOffers(page, reverseHolo = false, productUrl = productUrl)
+            if (result is CardmarketResult.Failed) ErrorLog.log("sealed price", null, "${result.detail} for ${item.name}")
+            result to page.imageUrl
         }
     } catch (e: CancellationException) {
         throw e
     } catch (e: CardmarketChallengeException) {
-        CardmarketResult.Challenge(e.url)
+        CardmarketResult.Challenge(e.url) to null
     } catch (e: Exception) {
         ErrorLog.log("sealed price", e, item.name)
-        CardmarketResult.Failed(CardmarketResult.Kind.OTHER, e.message ?: e.javaClass.simpleName)
+        CardmarketResult.Failed(CardmarketResult.Kind.OTHER, e.message ?: e.javaClass.simpleName) to null
     }
 
     /**
