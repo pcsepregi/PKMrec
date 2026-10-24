@@ -1,11 +1,15 @@
 package me.csepregi.pkmrec
 
 import android.os.Bundle
+import android.graphics.Color
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Surface
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.NavType
@@ -18,6 +22,7 @@ import me.csepregi.pkmrec.ui.CurrentScan
 import me.csepregi.pkmrec.ui.HomeScreen
 import me.csepregi.pkmrec.ui.LoginScreen
 import me.csepregi.pkmrec.ui.LookupScreen
+import me.csepregi.pkmrec.ui.NeonBackground
 import me.csepregi.pkmrec.ui.PkmrecTheme
 import me.csepregi.pkmrec.ui.PokedexResultScreen
 import me.csepregi.pkmrec.ui.PokedexSearchScreen
@@ -30,12 +35,25 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // The app is always dark: light status and navigation bar icons.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+        )
         setContent {
             PkmrecTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    NeonBackground()
                     val nav = rememberNavController()
-                    NavHost(navController = nav, startDestination = Routes.HOME) {
+                    NavHost(
+                        navController = nav,
+                        startDestination = Routes.HOME,
+                        // Screens are see-through over the shared background, so they must not cross-fade.
+                        enterTransition = { EnterTransition.None },
+                        exitTransition = { ExitTransition.None },
+                        popEnterTransition = { EnterTransition.None },
+                        popExitTransition = { ExitTransition.None },
+                    ) {
                         composable(Routes.HOME) {
                             HomeScreen(
                                 onOpenSettings = { nav.navigate(Routes.SETTINGS) },

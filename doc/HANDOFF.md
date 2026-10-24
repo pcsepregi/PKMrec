@@ -66,6 +66,10 @@ Errors are classified in `tcg/TcgErrors.kt` (`TcgError.of(e)`) and shown via `ui
 
 Home screen "Pokédex" button → `PokedexSearchScreen` (suggestions while typing) → `PokedexResultScreen` (list card with image, type, HP, set, number, rarity, variants). Settings: "Pokémon névlista frissítése". Decisions by Pali: only the Pokedex list, English names only, design to be polished in a later release.
 
+## 0.8.0 – neon theme (done)
+
+Whole app uses one dark colour scheme (`ui/Theme.kt`, `Neon` colours); the scheme's background is transparent and `NeonBackground` (`ui/NeonDecor.kt`) is drawn once behind the NavHost, so screen transitions are switched off. Home screen follows Pali's mockup; icons from `material-icons-core`.
+
 ## Backlog
 
 See `CHANGELOG.md` under "Unreleased": tests with real anonymised page samples (needs pages saved from a logged-in browser), R8 shrinking.
