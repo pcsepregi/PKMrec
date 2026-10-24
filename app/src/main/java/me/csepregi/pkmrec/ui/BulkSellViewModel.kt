@@ -22,6 +22,7 @@ import me.csepregi.pkmrec.recognition.CardReading
 import me.csepregi.pkmrec.recognition.MultiCardReader
 import me.csepregi.pkmrec.recognition.PokemonNameFinder
 import me.csepregi.pkmrec.tcg.CardLookup
+import me.csepregi.pkmrec.tcg.CardMatcher
 import me.csepregi.pkmrec.tcg.CollectionEntry
 import me.csepregi.pkmrec.tcg.CollectionWriter
 import me.csepregi.pkmrec.tcg.LookupOutcome
@@ -90,6 +91,11 @@ data class BulkSellState(
 
 class BulkSellViewModel(app: Application) : AndroidViewModel(app) {
 
+    private companion object {
+        /** A name read on the photo this close to the found card's name confirms the number. */
+        const val NAME_AGREES = 0.5
+    }
+
     private val _state = MutableStateFlow(BulkSellState())
     val state: StateFlow<BulkSellState> = _state.asStateFlow()
 
@@ -150,7 +156,7 @@ class BulkSellViewModel(app: Application) : AndroidViewModel(app) {
             _state.update { it.copy(rows = rows, unreadablePhotos = unreadable, progress = null, ocrReport = report?.toString()) }
 
             for (row in rows) {
-                val lookup = when (val outcome = CardLookup.lookup(app, row.reading)) {
+                val lookup = when (val outcome = lookup(row.reading)) {
                     LookupOutcome.NotLoggedIn -> {
                         _state.update { it.copy(notLoggedIn = true) }
                         break
@@ -167,6 +173,38 @@ class BulkSellViewModel(app: Application) : AndroidViewModel(app) {
             _state.update { it.copy(identifying = false, identified = true) }
             markPokedexList()
         }
+    }
+
+    /**
+     * By number, or by name when only that was read. A number that finds nothing (misread) is
+     * tried by name too, among the cards the user owns.
+     */
+    private suspend fun lookup(reading: CardReading): LookupOutcome {
+        val app = getApplication<Application>()
+        val name = reading.name?.takeIf { it.isNotBlank() }
+        if (reading.isNameOnly) return name?.let { CardLookup.lookupOwnedByName(app, it) } ?: LookupOutcome.Found(MatchResult.NotFound)
+        val outcome = CardLookup.lookup(app, reading)
+        if (name == null || outcome !is LookupOutcome.Found) return outcome
+        return when (val match = outcome.match) {
+            MatchResult.NotFound -> CardLookup.lookupOwnedByName(app, name)
+            // The number found a card with another name: one of the two was misread, so offer both.
+            is MatchResult.Single -> if (namesAgree(name, match.card.name)) outcome else {
+                val byName = (CardLookup.lookupOwnedByName(app, name) as? LookupOutcome.Found)?.match
+                val others = when (byName) {
+                    is MatchResult.Single -> listOf(byName.card)
+                    is MatchResult.Ambiguous -> byName.candidates
+                    else -> emptyList()
+                }.filter { it.id != match.card.id }
+                if (others.isEmpty()) outcome else LookupOutcome.Found(MatchResult.Ambiguous(listOf(match.card) + others))
+            }
+            is MatchResult.Ambiguous -> outcome
+        }
+    }
+
+    /** "Garchomp" read on the photo agrees with "Cynthia's Garchomp ex". */
+    private fun namesAgree(read: String, cardName: String): Boolean {
+        fun simple(t: String) = t.lowercase().filter { it.isLetterOrDigit() }
+        return simple(cardName).contains(simple(read)) || CardMatcher.nameSimilarity(read, cardName) >= NAME_AGREES
     }
 
     fun pickCandidate(rowId: Int, card: TcgCard) {

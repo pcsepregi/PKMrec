@@ -36,9 +36,13 @@ data class CardReading(
     /** Identity used to decide whether consecutive frames agree (the name is not part of it). */
     val key: String get() = "${setCode.orEmpty()}|$number|${total.orEmpty()}"
 
-    /** Human-readable form, e.g. "PAL 123/193" or "SVP 045". */
+    /** Only the name was read (a card on a table photo whose number was unreadable). */
+    val isNameOnly: Boolean get() = number.isEmpty()
+
+    /** Human-readable form, e.g. "PAL 123/193" or "SVP 045"; the name when only that was read. */
     val display: String
-        get() = listOfNotNull(setCode, if (total != null) "$number/$total" else number).joinToString(" ")
+        get() = if (isNameOnly) name.orEmpty()
+        else listOfNotNull(setCode, if (total != null) "$number/$total" else number).joinToString(" ")
 }
 
 /** A reading and the OCR line its number was read from (the set symbol is printed next to it). */

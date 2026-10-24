@@ -6,6 +6,12 @@ Release notes shown in the app's update dialog are taken from the matching secti
 
 - Enable R8 code shrinking for a smaller APK.
 
+## 2.0.2
+
+- Tömeges eladás: on table photos most card numbers are too small or shiny to read, but the card names are readable. A card whose number cannot be read is now found by its name: Pokémon names (also when "BASIC"/"STAGE", HP or "ex" is glued to them) and trainer names under the "Supporter" / "Item" / "Pokémon Tool" label. Only the cards in your collection with that name are offered; with several, you pick.
+- A number that finds nothing is tried by the card's name as well; when the number finds a card with another name than the one on the photo, both are offered to pick from.
+- Numbers read with the slash lost ("224182" = 224/182) are understood; cut-off readings ("110/01", "10/085") are no longer taken as numbers.
+
 ## 2.0.1
 
 - Home screen: "Tömeges eladás" is now the last button, and all four buttons fit on the screen without scrolling.

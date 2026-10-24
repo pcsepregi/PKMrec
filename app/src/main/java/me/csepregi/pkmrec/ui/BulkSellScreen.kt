@@ -228,7 +228,9 @@ private fun SellRowCard(
                     Spacer(Modifier.width(10.dp))
                     Text(stringResource(R.string.bulk_row_searching, row.reading.display))
                 }
-                SellLookup.NotFound -> Text(stringResource(R.string.bulk_row_not_found, row.reading.display))
+                SellLookup.NotFound -> Text(
+                    stringResource(if (row.reading.isNameOnly) R.string.bulk_row_not_owned else R.string.bulk_row_not_found, row.reading.display),
+                )
                 is SellLookup.Error -> Text(stringResource(R.string.bulk_row_error, row.reading.display, tcgErrorText(lookup.error)))
                 is SellLookup.Pick -> {
                     Text(stringResource(R.string.bulk_row_pick, row.reading.display), fontWeight = FontWeight.SemiBold)

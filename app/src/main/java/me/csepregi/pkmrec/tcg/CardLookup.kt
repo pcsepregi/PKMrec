@@ -55,6 +55,53 @@ object CardLookup {
         }
     }
 
+    /**
+     * Finds a card by its name alone (Tömeges eladás, number unreadable): only cards the user owns
+     * count, as only those can be sold, best name match first. Several owned prints → the user picks.
+     */
+    suspend fun lookupOwnedByName(context: Context, name: String): LookupOutcome = withContext(Dispatchers.IO) {
+        try {
+            val client = TcgSession.client(context)
+            val cards = mutableListOf<TcgCard>()
+            val pageOfCard = mutableMapOf<Int, Int>()
+            var page = 1
+            while (page <= MAX_PAGES) {
+                val listPage = client.fetchPage(searchUrl(name, "list", page))
+                val state = listPage.requireAppState()
+                if (TcgUser.fromAppState(state) == null) return@withContext LookupOutcome.NotLoggedIn
+                val found = TcgSearchParser.parseListPage(listPage.html, state)
+                found.forEach { pageOfCard[it.id] = page }
+                cards += found
+                val hasMore = (state["hasMultiplePages"] as? kotlinx.serialization.json.JsonPrimitive)?.content == "true"
+                if (!hasMore || found.isEmpty()) break
+                page++
+            }
+            LookupOutcome.Found(withImages(client, name, ownedByName(name, cards), pageOfCard))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            ErrorLog.log("lookup by name", e, name)
+            LookupOutcome.Error(TcgError.of(e))
+        }
+    }
+
+    /** The English cards the user owns whose name contains [name] or is close to it, best match first. */
+    internal fun ownedByName(name: String, cards: List<TcgCard>): MatchResult {
+        val key = name.lowercase().filter { it.isLetterOrDigit() }
+        val owned = cards.distinctBy { it.id }
+            .filter { it.regionId == null || it.regionId == TcgIds.REGION_INTERNATIONAL }
+            .filter { card -> card.variants.any { it.isOwned } }
+            .filter { card ->
+                card.name.lowercase().filter { it.isLetterOrDigit() }.contains(key) || CardMatcher.nameSimilarity(name, card.name) >= 0.75
+            }
+            .sortedByDescending { CardMatcher.nameSimilarity(name, it.name) }
+        return when (owned.size) {
+            0 -> MatchResult.NotFound
+            1 -> MatchResult.Single(owned.first())
+            else -> MatchResult.Ambiguous(owned)
+        }
+    }
+
     /** The search text, and the reading as it should be compared with TCG Collector's numbers. */
     internal fun queryFor(reading: CardReading): Pair<String, CardReading> {
         val code = reading.setCode

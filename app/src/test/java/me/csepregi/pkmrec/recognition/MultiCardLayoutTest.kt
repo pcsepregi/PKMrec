@@ -1,11 +1,13 @@
 package me.csepregi.pkmrec.recognition
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.cos
 import kotlin.math.sin
 
-class MultiCardReaderTest {
+class MultiCardLayoutTest {
 
     private val names = PokemonNameFinder(listOf("Pikachu", "Charmander", "Bulbasaur", "Chandelure"))
 
@@ -37,7 +39,7 @@ class MultiCardReaderTest {
         val lines = card("Pikachu", "G PAL EN 063/193", 100, 1100) +
             card("Charmander", "G MEW EN 004/165", 900, 1100) +
             card("Bulbasaur", "H SVI EN 001/198", 100, 2200)
-        val cards = MultiCardReader.cards(lines.shuffled(java.util.Random(1)), names)
+        val cards = MultiCardLayout.cards(lines.shuffled(java.util.Random(1)), names)
         assertEquals(
             listOf("PAL 063/193 Pikachu", "MEW 004/165 Charmander", "SVI 001/198 Bulbasaur"),
             cards.map { "${it.reading.display} ${it.reading.name}" },
@@ -48,7 +50,7 @@ class MultiCardReaderTest {
     fun `cards lying at different angles keep their own names`() {
         val lines = card("Pikachu", "G PAL EN 063/193", 100, 1100).turned(-30.0, 100f, 1100f) +
             card("Chandelure", "J PBL EN 115/084", 1100, 1300).turned(25.0, 1100f, 1300f)
-        val cards = MultiCardReader.cards(lines, names)
+        val cards = MultiCardLayout.cards(lines, names)
         assertEquals(
             setOf("PAL 063/193 Pikachu", "PBL 115/084 Chandelure"),
             cards.map { "${it.reading.display} ${it.reading.name}" }.toSet(),
@@ -58,18 +60,18 @@ class MultiCardReaderTest {
     @Test
     fun `the same card twice is two readings`() {
         val lines = card("Pikachu", "G PAL EN 063/193", 100, 1100) + card("Pikachu", "G PAL EN 063/193", 900, 1100)
-        assertEquals(2, MultiCardReader.cards(lines, names).size)
+        assertEquals(2, MultiCardLayout.cards(lines, names).size)
     }
 
     @Test
     fun `a number read as two lines is one card`() {
         val lines = card("Pikachu", "G PAL EN 063/193", 100, 1100) + line("063/193", 160, 1081)
-        assertEquals(1, MultiCardReader.cards(lines, names).size)
+        assertEquals(1, MultiCardLayout.cards(lines, names).size)
     }
 
     @Test
     fun `no number, no card`() {
-        assertEquals(0, MultiCardReader.cards(listOf(line("Pikachu", 0, 0), line("HP 60", 300, 0)), names).size)
+        assertEquals(0, MultiCardLayout.cards(listOf(line("Pikachu", 0, 0), line("HP 60", 300, 0)), names).size)
     }
 
     @Test
@@ -77,12 +79,12 @@ class MultiCardReaderTest {
         val whole = line("Team Rocket's Ariana", 100, 100, width = 400, h = 40)
         val cut = line("Rocket's Ariana", 200, 102, width = 300, h = 38)
         val number = line("224/182", 100, 900)
-        assertEquals(listOf(whole, number), MultiCardReader.distinctLines(listOf(cut, whole, number)))
+        assertEquals(listOf(whole, number), MultiCardLayout.distinctLines(listOf(cut, whole, number)))
     }
 
     @Test
     fun `pieces overlap and cover the whole photo`() {
-        val pieces = MultiCardReader.pieces(2304, 4096)
+        val pieces = MultiCardLayout.pieces(2304, 4096)
         assertEquals(15, pieces.size)
         assertEquals(2304, pieces.maxOf { it.right })
         assertEquals(4096, pieces.maxOf { it.bottom })
@@ -94,5 +96,51 @@ class MultiCardReaderTest {
         assertEquals(45.0, Math.toDegrees(l.angle.toDouble()), 0.01)
         assertEquals(141.4f, l.width, 0.1f)
         assertEquals(14.1f, l.height, 0.1f)
+    }
+
+    /** OCR lines of Pali's five table photos (2.0.1 debug report): "x,y hH angle° text" per line. */
+    private fun tablePhotos(): List<List<PhotoLine>> {
+        val text = javaClass.getResourceAsStream("/bulk-sell/table-photos-2.0.1.txt")!!.bufferedReader().readText()
+        val pattern = Regex("""^(\d+),(\d+) h(\d+) (-?\d+)° (.*)$""")
+        val photos = mutableListOf<MutableList<PhotoLine>>()
+        text.lines().forEach { l ->
+            if (l.startsWith("==")) photos += mutableListOf<PhotoLine>()
+            else pattern.matchEntire(l)?.destructured?.let { (x, y, h, a, t) ->
+                // The report has no line widths; about half a line height per character.
+                photos.last() += PhotoLine(t, x.toFloat(), y.toFloat(), t.length * h.toFloat() * 0.55f, h.toFloat(), Math.toRadians(a.toDouble()).toFloat())
+            }
+        }
+        return photos
+    }
+
+    private val allNames = PokemonNameFinder(
+        listOf("Garchomp", "Staraptor", "Chandelure", "Cetitan", "Zekrom", "Talonflame", "Delibird", "Terapagos", "Pikachu", "Throh", "Gabite"),
+    )
+
+    @Test
+    fun `table photos - cards are found by number or by name`() {
+        val found = tablePhotos().map { lines -> MultiCardLayout.cards(lines, allNames).map { "${it.reading.display}|${it.reading.name}" } }
+        // Photo 1: Ariana by her slash-less number, Mega Chandelure ex by number, the rest by name.
+        assertEquals(
+            setOf("Rust Syndicate Grunt|Rust Syndicate Grunt", "Garchomp|Garchomp", "224/182|Team Rocket's Ariana", "Staraptor|Staraptor", "PBL 115/084|Chandelure"),
+            found[0].toSet(),
+        )
+        // Photo 3: two copies of Philippe; "110/01" (total cut off) is not a number.
+        assertEquals(2, found[2].count { it == "Philippe|Philippe" })
+        assertTrue(found[2].none { it.startsWith("110/01") })
+        // Photo 5: Zekrom with "BASIC" glued to it; "Overhead Throw" is not Throh.
+        assertTrue("Zekrom|Zekrom" in found[4])
+        assertTrue(found[4].none { it.contains("Throh") })
+        assertTrue("168/132|Fighting Gong" in found[4])
+    }
+
+    @Test
+    fun `trainer labels are recognised when misread or cut off`() {
+        listOf("SuPPogtes", "upportec", "Dorter", "Iterm", "Pokémon Tool7", "SUpporter").forEach {
+            assertTrue(it, MultiCardLayout.isTrainerLabel(it))
+        }
+        listOf("Philippe", "Counter Gain", "TRAINER", "your turn").forEach {
+            assertFalse(it, MultiCardLayout.isTrainerLabel(it))
+        }
     }
 }

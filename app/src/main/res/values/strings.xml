@@ -92,6 +92,7 @@
     <string name="bulk_cards_found">%1$d lap a képeken, ebből %2$d azonosítva</string>
     <string name="bulk_row_searching">Keresem: %1$s…</string>
     <string name="bulk_row_not_found">Nem találtam a TCG Collectoron: %1$s</string>
+    <string name="bulk_row_not_owned">Nincs ilyen nevű lap a kollekciódban: %1$s (a lapszámát nem tudtam elolvasni)</string>
     <string name="bulk_row_error">Nem sikerült megkeresni (%1$s). %2$s</string>
     <string name="bulk_row_pick">Több lap is lehet (%1$s), melyik az?</string>
     <string name="bulk_row_delete">Sor törlése</string>
