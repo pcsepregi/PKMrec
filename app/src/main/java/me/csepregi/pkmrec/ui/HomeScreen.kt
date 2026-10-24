@@ -62,10 +62,11 @@ private data class Feature(
 )
 
 @Composable
-fun HomeScreen(onOpenSettings: () -> Unit, onLogin: () -> Unit, onRecognize: () -> Unit, onPokedex: () -> Unit, onSealed: () -> Unit) {
+fun HomeScreen(onOpenSettings: () -> Unit, onLogin: () -> Unit, onRecognize: () -> Unit, onPokedex: () -> Unit, onSealed: () -> Unit, onBulkSell: () -> Unit) {
     val features = listOf(
         Feature(R.string.feature_recognition, R.string.feature_recognition_desc, R.drawable.feature_scan, Neon.GlowSoft, open = onRecognize),
         Feature(R.string.feature_pokedex, R.string.feature_pokedex_desc, R.drawable.feature_pokedex, Neon.Purple, open = onPokedex),
+        Feature(R.string.feature_bulk_sell, R.string.feature_bulk_sell_desc, R.drawable.feature_bulk_sell, Neon.Purple, open = onBulkSell),
         Feature(R.string.feature_sealed, R.string.feature_sealed_desc, R.drawable.feature_sealed, Neon.GlowSoft, needsLogin = false, open = onSealed),
     )
     val session by TcgSession.state.collectAsState()

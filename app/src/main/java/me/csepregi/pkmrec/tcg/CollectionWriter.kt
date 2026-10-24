@@ -46,6 +46,9 @@ sealed interface WriteOutcome {
 
     /** TCG Collector answered, but the reloaded card does not show the change. */
     data object NotApplied : WriteOutcome
+
+    /** Removing: the card page shows no copy of the variant (any more). */
+    data object NothingToRemove : WriteOutcome
     data class Error(val error: TcgError) : WriteOutcome
 }
 
@@ -69,6 +72,24 @@ object CollectionWriter {
         Request("POST", MERGE_URL, body(card.id, listOf(entry)), state.count(variant.id) + 1)
     }
 
+    /** Removes one English copy of [variant]; see [withOneLess] for which entry. */
+    suspend fun removeOne(context: Context, card: TcgCard, variant: CardVariant): WriteOutcome = write(context, card, variant, "remove") { state ->
+        withOneLess(state, variant.id)?.let { Request("PUT", REPLACE_URL, body(card.id, it), state.count(variant.id) - 1) }
+    }
+
+    /**
+     * The card's entries with one copy of the variant less: from the entry in the default condition
+     * without a note if there is one, otherwise from the entry with the most copies. An entry
+     * that reaches 0 is dropped. Null when there is no copy to remove.
+     */
+    fun withOneLess(state: CardCollectionState, variantId: Int): List<CollectionEntry>? {
+        val own = state.entries.filter { it.variantId == variantId && it.languageId == state.languageId && it.count > 0 }
+        val from = own.firstOrNull { it.conditionId == state.conditionId && it.note == null } ?: own.maxByOrNull { it.count } ?: return null
+        return state.entries.mapNotNull { e ->
+            if (e !== from) e else e.copy(count = e.count - 1).takeIf { it.count > 0 }
+        }
+    }
+
     /** Puts back the entries a previous write started from (undo). */
     suspend fun restore(context: Context, card: TcgCard, variant: CardVariant, before: List<CollectionEntry>): WriteOutcome =
         write(context, card, variant, "undo") { state ->
@@ -80,12 +101,12 @@ object CollectionWriter {
         card: TcgCard,
         variant: CardVariant,
         action: String,
-        request: (CardCollectionState) -> Request,
+        request: (CardCollectionState) -> Request?,
     ): WriteOutcome = withContext(Dispatchers.IO) {
         try {
             val client = TcgSession.client(context)
             val state = load(client, card) ?: return@withContext WriteOutcome.NotLoggedIn
-            val call = request(state)
+            val call = request(state) ?: return@withContext WriteOutcome.NothingToRemove
             client.sendJson(call.method, call.url, call.body, mapOf(state.csrfHeader to state.csrfToken), referer = card.url)
             val after = load(client, card) ?: return@withContext WriteOutcome.NotLoggedIn
             val newCount = after.count(variant.id)

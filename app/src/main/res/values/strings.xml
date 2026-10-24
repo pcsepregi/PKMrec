@@ -11,6 +11,8 @@
     <string name="feature_recognition_desc">Fotózd le a kártyát, és megmondom, megvan-e a gyűjteményedben.</string>
     <string name="feature_pokedex">Pokédex</string>
     <string name="feature_pokedex_desc">Írd be a nevét, és megnézheted a kártyáit a Pokédex listából.</string>
+    <string name="feature_bulk_sell">Tömeges eladás</string>
+    <string name="feature_bulk_sell_desc">Fotózd le az eladott lapokat, és egyenként leveszem őket a kollekciódból.</string>
     <string name="settings">Beállítások</string>
 
     <!-- Login / session -->
@@ -74,6 +76,31 @@
     <string name="lookup_variant_line">Változat: %1$s · angolul %2$d db</string>
     <string name="lookup_other_languages">Más nyelven megvan (%1$d db)</string>
     <string name="lookup_open_tcg">Megnyitás a TCG Collectoron</string>
+    <string name="bulk_help">Tedd ki az eladott lapokat egy asztalra egymás mellé, egyenesen, és fotózd le őket (több fotó is lehet), vagy válassz képeket a galériából. Utána nyomd meg az Azonosítás gombot.</string>
+    <string name="bulk_take_photo">Fotó</string>
+    <string name="bulk_from_file">Fájlból</string>
+    <string name="bulk_no_camera">Nem sikerült elindítani a kamerát.</string>
+    <string name="bulk_camera_denied">A fotózáshoz engedélyezd a kamerát.</string>
+    <string name="bulk_photo_count">Fotók: %1$d</string>
+    <string name="bulk_identify">Azonosítás</string>
+    <string name="bulk_reading_photos">Képek olvasása: %1$d / %2$d…</string>
+    <string name="bulk_searching_cards">Lapok keresése a TCG Collectoron…</string>
+    <string name="bulk_unreadable">%1$d képet nem sikerült beolvasni.</string>
+    <string name="bulk_none_found">Nem találtam lapszámot a képeken. Fotózd közelebbről, hogy a lapok alján lévő szám olvasható legyen.</string>
+    <string name="bulk_cards_found">%1$d lap a képeken, ebből %2$d azonosítva</string>
+    <string name="bulk_row_searching">Keresem: %1$s…</string>
+    <string name="bulk_row_not_found">Nem találtam a TCG Collectoron: %1$s</string>
+    <string name="bulk_row_error">Nem sikerült megkeresni (%1$s). %2$s</string>
+    <string name="bulk_row_pick">Több lap is lehet (%1$s), melyik az?</string>
+    <string name="bulk_row_delete">Sor törlése</string>
+    <string name="bulk_in_pokedex_list">★ A Pokedex listádban van</string>
+    <string name="bulk_not_in_collection">Nincs a kollekciódban</string>
+    <string name="bulk_variant_chip">%1$s · %2$d db</string>
+    <string name="bulk_pick_variant">Válaszd ki a változatot</string>
+    <string name="bulk_remove">Levesz (−1 %1$s)</string>
+    <string name="bulk_removed">Levéve, most %1$d db van.</string>
+    <string name="bulk_nothing_to_remove">A TCG Collectoron már nincs ebből a változatból.</string>
+    <string name="bulk_remove_error">Nem sikerült a levétel. %1$s</string>
     <string name="add_to_collection">Hozzáadás a kollekcióhoz (+1 %1$s)</string>
     <string name="add_done">Hozzáadva, most %1$d db van.</string>
     <string name="add_undo">Visszavonás</string>

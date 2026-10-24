@@ -18,6 +18,7 @@ import androidx.navigation.navArgument
 import androidx.navigation.compose.rememberNavController
 import me.csepregi.pkmrec.cardmarket.EurHuf
 import me.csepregi.pkmrec.tcg.TcgSession
+import me.csepregi.pkmrec.ui.BulkSellScreen
 import me.csepregi.pkmrec.ui.CameraScreen
 import me.csepregi.pkmrec.ui.CardmarketDebugScreen
 import me.csepregi.pkmrec.ui.CollectionLogScreen
@@ -67,6 +68,7 @@ class MainActivity : ComponentActivity() {
                                 onRecognize = { nav.navigate(Routes.CAMERA) },
                                 onPokedex = { nav.navigate(Routes.POKEDEX) },
                                 onSealed = { nav.navigate(Routes.SEALED) },
+                                onBulkSell = { nav.navigate(Routes.BULK_SELL) },
                             )
                         }
                         composable(Routes.SEALED) {
@@ -128,6 +130,9 @@ class MainActivity : ComponentActivity() {
                         composable(Routes.POKEMON_NAMES) {
                             PokemonNamesScreen(onBack = { nav.popBackStack() })
                         }
+                        composable(Routes.BULK_SELL) {
+                            BulkSellScreen(onBack = { nav.popBackStack() }, onLogin = { nav.navigate(Routes.LOGIN) })
+                        }
                         composable(Routes.COLLECTION_LOG) {
                             CollectionLogScreen(onBack = { nav.popBackStack() })
                         }
@@ -165,6 +170,7 @@ object Routes {
     const val CARDMARKET_DEBUG = "cardmarket-debug"
     const val POKEMON_NAMES = "pokemon-names"
     const val COLLECTION_LOG = "collection-log"
+    const val BULK_SELL = "bulk-sell"
     const val SEALED = "sealed"
     const val SEALED_ITEM = "sealed/{id}"
 

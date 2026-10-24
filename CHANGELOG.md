@@ -6,6 +6,13 @@ Release notes shown in the app's update dialog are taken from the matching secti
 
 - Enable R8 code shrinking for a smaller APK.
 
+## 2.0.0
+
+- New main-screen menu "Tömeges eladás": take photos of the cards you sold with the camera button on the screen, or pick photos from the gallery, then press "Azonosítás". The app finds every card number on the photos and looks each card up on TCG Collector. Each card gets a row with its picture, set, number and the variants you own with their counts; pick the variant (it is preselected when you own only one) and "Levesz" removes one copy from your collection, with "Visszavonás" for 6 seconds. The same card twice on the photos is two rows. Cards that need a choice or were not found are at the end of the list; rows can be deleted.
+- Cards that are in your Pokedex list are marked "A Pokedex listádban van". The list itself is never changed.
+- Removals appear in the "Kollekció napló" in Settings.
+- Works best with cards laid out straight, next to each other, with the number at the bottom left (Sun & Moon and newer). If no card is found, take the photo closer.
+
 ## 1.4.0
 
 - Pokédex: when the card in your Pokedex list is Common, Uncommon or Rare, a new "Legújabb full art / double rare lapok" section under it shows the Pokémon's 5 newest full art and double rare cards from TCG Collector (Double Rare, Ultra Rare, Illustration Rare, Special Illustration Rare, Hyper Rare, and the older full arts, V, VMAX, VSTAR, GX, EX, Secret, Rainbow and Shiny cards), each with picture, set, number, rarity and a ✓ when you own it. Tap a card to open it on TCG Collector.

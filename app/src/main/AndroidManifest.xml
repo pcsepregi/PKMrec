@@ -28,6 +28,17 @@
             </intent-filter>
         </activity>
 
+        <!-- Tömeges eladás: the camera app saves its photos into the app's cache through this. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.photos"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/photo_paths" />
+        </provider>
+
         <receiver
             android:name=".update.InstallResultReceiver"
             android:exported="false" />

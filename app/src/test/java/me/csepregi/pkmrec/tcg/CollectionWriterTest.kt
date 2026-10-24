@@ -105,4 +105,33 @@ class CollectionWriterTest {
             )
         }
     }
+
+    private fun stateOf(vararg entries: CollectionEntry) = CardCollectionState(7, entries.toList(), 1, 8, "X-CSRF-Token", "t")
+
+    @Test
+    fun `one less comes from the default condition entry without a note`() {
+        val s = stateOf(
+            CollectionEntry(1, 1, 3, null, 4),
+            CollectionEntry(1, 1, 8, null, 2),
+            CollectionEntry(2, 1, 8, null, 1),
+        )
+        assertEquals(
+            listOf(CollectionEntry(1, 1, 3, null, 4), CollectionEntry(1, 1, 8, null, 1), CollectionEntry(2, 1, 8, null, 1)),
+            CollectionWriter.withOneLess(s, 1),
+        )
+    }
+
+    @Test
+    fun `otherwise from the largest entry, and an entry at zero is dropped`() {
+        val s = stateOf(CollectionEntry(1, 1, 3, "binder", 1), CollectionEntry(1, 5, 8, null, 3), CollectionEntry(2, 1, 8, null, 1))
+        // Variant 1 in English only has the binder copy; the Japanese copies are not touched.
+        assertEquals(listOf(CollectionEntry(1, 5, 8, null, 3), CollectionEntry(2, 1, 8, null, 1)), CollectionWriter.withOneLess(s, 1))
+        assertEquals(listOf(CollectionEntry(1, 1, 3, "binder", 1), CollectionEntry(1, 5, 8, null, 3)), CollectionWriter.withOneLess(s, 2))
+    }
+
+    @Test
+    fun `nothing to remove`() {
+        assertEquals(null, CollectionWriter.withOneLess(stateOf(CollectionEntry(1, 5, 8, null, 3)), 1))
+        assertEquals(null, CollectionWriter.withOneLess(stateOf(), 1))
+    }
 }

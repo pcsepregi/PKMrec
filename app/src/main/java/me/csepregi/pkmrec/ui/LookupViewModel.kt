@@ -275,7 +275,7 @@ class LookupViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun failure(outcome: WriteOutcome): AddUiState = when (outcome) {
         WriteOutcome.NotLoggedIn -> AddUiState.NotLoggedIn
-        WriteOutcome.NotApplied -> AddUiState.NotApplied
+        WriteOutcome.NotApplied, WriteOutcome.NothingToRemove -> AddUiState.NotApplied
         is WriteOutcome.Error -> AddUiState.Error(outcome.error)
         is WriteOutcome.Done -> AddUiState.Idle
     }
