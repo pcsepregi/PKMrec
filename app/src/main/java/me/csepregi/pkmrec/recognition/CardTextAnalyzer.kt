@@ -47,7 +47,7 @@ class CardTextAnalyzer(
          * least two real digits.
          * Not "com/cards" or "cards/38896" from a web address on a screen.
          */
-        val NUMBER_LIKE = Regex("""(?<![\w/])[A-Za-z]{0,2}[0-9OoIlSB]{1,3}\s*/\s*[A-Za-z]{0,2}[0-9OoIlSB]{1,3}(?![\w/])""")
+        val NUMBER_LIKE = Regex("""(?<![\w/])[A-Za-z]{0,2}[0-9OoQDIlSBZGT]{1,3}\s*/\s*[A-Za-z]{0,2}[0-9OoQDIlSBZGT]{1,3}(?![\w/])""")
 
         fun isNumberLike(text: String): Boolean =
             NUMBER_LIKE.findAll(text).any { match -> match.value.count { it.isDigit() } >= 2 }
