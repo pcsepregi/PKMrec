@@ -8,6 +8,7 @@ import android.widget.Toast
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.SystemClock
 import android.provider.Settings
 import android.util.Size
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -78,12 +79,15 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import me.csepregi.pkmrec.BuildConfig
 import me.csepregi.pkmrec.R
 import me.csepregi.pkmrec.diagnostics.ErrorLog
+import me.csepregi.pkmrec.diagnostics.SlowScanLog
 import me.csepregi.pkmrec.pokedex.PokemonNames
+import me.csepregi.pkmrec.recognition.CardPresence
 import me.csepregi.pkmrec.recognition.CardReading
 import me.csepregi.pkmrec.recognition.CardTextAnalyzer
 import me.csepregi.pkmrec.recognition.GrayImage
 import me.csepregi.pkmrec.recognition.OcrLine
 import me.csepregi.pkmrec.recognition.ReadingStabilizer
+import me.csepregi.pkmrec.recognition.SlowScanTracker
 import java.util.concurrent.Executors
 import kotlin.math.roundToInt
 
@@ -150,8 +154,19 @@ private fun ScannerContent(onBack: () -> Unit, onRecognized: (CardReading) -> Un
     // Set symbol crops of the latest frames with a reading, for telling sets apart in the lookup.
     val symbols = remember { ArrayDeque<Pair<CardReading, GrayImage>>() }
 
+    // Debug mode: recognitions taking over 5 s with a card in view go to the slow recognition log.
+    val debugMode = remember { SlowScanLog.isEnabled(context) }
+    val slowScans = remember { SlowScanTracker() }
+    var debugMarkers by remember { mutableStateOf<Set<CardPresence.Marker>>(emptySet()) }
+    var debugElapsed by remember { mutableStateOf<Long?>(null) }
+    fun finishAttempt(outcome: SlowScanTracker.Outcome, result: CardReading?) {
+        if (!debugMode) return
+        slowScans.finish(SystemClock.elapsedRealtime(), outcome, result)?.let { SlowScanLog.log(context, it) }
+        debugElapsed = null
+    }
+
     val analyzer = remember {
-        CardTextAnalyzer(loadNames = { PokemonNames.all(context).map { it.name } }) { reading, lines, symbol ->
+        CardTextAnalyzer(loadNames = { PokemonNames.all(context).map { it.name } }) { reading, lines, symbol, markers ->
             if (confirmed != null) return@CardTextAnalyzer
             rawLines = lines
             rawSymbol = symbol?.let { "${it.width}x${it.height}" }
@@ -161,7 +176,15 @@ private fun ScannerContent(onBack: () -> Unit, onRecognized: (CardReading) -> Un
             }
             val stable = stabilizer.offer(reading)
             live = stabilizer.current
+            if (debugMode) {
+                val now = SystemClock.elapsedRealtime()
+                slowScans.offer(now, markers, reading) { ocrReport(lines, live, rawSymbol) }
+                    ?.let { SlowScanLog.log(context, it) }
+                debugMarkers = markers
+                debugElapsed = slowScans.elapsed(now)
+            }
             if (stable != null) {
+                finishAttempt(SlowScanTracker.Outcome.RECOGNIZED, stable)
                 CurrentScan.symbol = symbols.lastOrNull { (r, _) -> r.number == stable.number && r.total == stable.total }?.second
                 symbols.clear()
                 confirmed = stable
@@ -170,6 +193,7 @@ private fun ScannerContent(onBack: () -> Unit, onRecognized: (CardReading) -> Un
         }
     }
     analyzer.paused = confirmed != null || showManual
+    analyzer.detectPresence = debugMode
 
     // A confirmed reading (camera or manual entry) goes straight to the TCG Collector lookup.
     LaunchedEffect(confirmed) {
@@ -179,7 +203,10 @@ private fun ScannerContent(onBack: () -> Unit, onRecognized: (CardReading) -> Un
     val previewView = remember { PreviewView(context).apply { scaleType = PreviewView.ScaleType.FILL_CENTER } }
 
     DisposableEffect(Unit) {
-        onDispose { analyzer.close() }
+        onDispose {
+            if (confirmed == null) finishAttempt(SlowScanTracker.Outcome.STOPPED, null)
+            analyzer.close()
+        }
     }
 
     DisposableEffect(lifecycleOwner, cameraAttempt) {
@@ -316,13 +343,17 @@ private fun ScannerContent(onBack: () -> Unit, onRecognized: (CardReading) -> Un
                 )
             } else {
                 Card(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = live?.let { stringResource(R.string.camera_reading, it.display) }
-                            ?: stringResource(R.string.camera_searching),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                    )
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                        Text(
+                            text = live?.let { stringResource(R.string.camera_reading, it.display) }
+                                ?: stringResource(R.string.camera_searching),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        if (debugMode) {
+                            DebugStatus(markers = debugMarkers, elapsedMs = debugElapsed)
+                        }
+                    }
                 }
             }
 
@@ -372,6 +403,7 @@ private fun ScannerContent(onBack: () -> Unit, onRecognized: (CardReading) -> Un
             onDismiss = { showManual = false },
             onConfirm = { reading ->
                 showManual = false
+                finishAttempt(SlowScanTracker.Outcome.MANUAL, reading)
                 CurrentScan.symbol = null
                 confirmed = reading
             },
@@ -412,17 +444,39 @@ private fun focusAt(camera: Camera, view: PreviewView, x: Float, y: Float) {
     camera.cameraControl.startFocusAndMetering(action)
 }
 
+/** What the text recognizer saw in one frame, as copied from the raw text panel and saved in the slow recognition log. */
+private fun ocrReport(lines: List<OcrLine>, reading: CardReading?, symbol: String?): String = buildString {
+    appendLine("PKMrec ${BuildConfig.VERSION_NAME} OCR")
+    appendLine("reading: " + (reading?.let { "${it.display} | mark=${it.regulationMark} | name=${it.name}" } ?: "-"))
+    appendLine("symbol crop: " + (symbol ?: "-"))
+    lines.sortedBy { it.top }.forEach {
+        appendLine((if (it.fromStrip) "*" else " ") + "[${it.top}-${it.bottom} x${it.left}-${it.right}] ${it.text}")
+    }
+}
+
+/** Debug mode: which kinds of card text the current frame has, and how long the attempt has run. */
+@Composable
+private fun DebugStatus(markers: Set<CardPresence.Marker>, elapsedMs: Long?) {
+    val found = markers.joinToString(", ") { it.label }.ifEmpty { "-" }
+    val text = if (CardPresence.isCardInView(markers) && elapsedMs != null) {
+        stringResource(R.string.camera_debug_card, found, String.format(java.util.Locale.ROOT, "%.1f", elapsedMs / 1000.0).replace('.', ','))
+    } else {
+        stringResource(R.string.camera_debug_no_card, found)
+    }
+    Text(
+        text,
+        style = MaterialTheme.typography.bodySmall,
+        fontFamily = FontFamily.Monospace,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
 /** Debug view: what the text recognizer currently sees, so recognition problems can be reported. */
 @Composable
 private fun RawTextPanel(lines: List<OcrLine>, reading: CardReading?, symbol: String?, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val sorted = lines.sortedBy { it.top }
-    val report = buildString {
-        appendLine("PKMrec ${BuildConfig.VERSION_NAME} OCR")
-        appendLine("reading: " + (reading?.let { "${it.display} | mark=${it.regulationMark} | name=${it.name}" } ?: "-"))
-        appendLine("symbol crop: " + (symbol ?: "-"))
-        sorted.forEach { appendLine((if (it.fromStrip) "*" else " ") + "[${it.top}-${it.bottom} x${it.left}-${it.right}] ${it.text}") }
-    }
+    val report = ocrReport(lines, reading, symbol)
     Card(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
