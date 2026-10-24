@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.csepregi.pkmrec.BuildConfig
 import me.csepregi.pkmrec.diagnostics.ErrorLog
+import me.csepregi.pkmrec.diagnostics.SlowScanLog
 import me.csepregi.pkmrec.pokedex.PokemonNames
 import me.csepregi.pkmrec.recognition.CardReading
 import me.csepregi.pkmrec.recognition.MultiCardReader
@@ -83,6 +84,8 @@ data class BulkSellState(
     /** Photos that could not be read at all. */
     val unreadablePhotos: Int = 0,
     val rows: List<SellRow> = emptyList(),
+    /** Everything OCR read on the photos, for tuning; only in debug mode. */
+    val ocrReport: String? = null,
 )
 
 class BulkSellViewModel(app: Application) : AndroidViewModel(app) {
@@ -120,7 +123,7 @@ class BulkSellViewModel(app: Application) : AndroidViewModel(app) {
         undoTimers.clear()
         undoEntries.clear()
         _state.update {
-            it.copy(identifying = true, identified = false, notLoggedIn = false, unreadablePhotos = 0, rows = emptyList(), progress = 0 to photos.size)
+            it.copy(identifying = true, identified = false, notLoggedIn = false, unreadablePhotos = 0, rows = emptyList(), progress = 0 to photos.size, ocrReport = null)
         }
         identifyJob = viewModelScope.launch {
             val app = getApplication<Application>()
@@ -128,11 +131,14 @@ class BulkSellViewModel(app: Application) : AndroidViewModel(app) {
                 runCatching { PokemonNameFinder(PokemonNames.all(app).map { it.name }) }.getOrNull()
             }
             val readings = mutableListOf<CardReading>()
+            val report = if (SlowScanLog.isEnabled(app)) StringBuilder() else null
             var unreadable = 0
             photos.forEachIndexed { index, photo ->
                 _state.update { it.copy(progress = index + 1 to photos.size) }
                 try {
-                    readings += MultiCardReader.read(app, photo, names).map { it.reading }
+                    val read = MultiCardReader.read(app, photo, names)
+                    readings += read.cards.map { it.reading }
+                    report?.appendPhoto(index + 1, read)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -141,7 +147,7 @@ class BulkSellViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             val rows = readings.map { SellRow(nextRowId++, it) }
-            _state.update { it.copy(rows = rows, unreadablePhotos = unreadable, progress = null) }
+            _state.update { it.copy(rows = rows, unreadablePhotos = unreadable, progress = null, ocrReport = report?.toString()) }
 
             for (row in rows) {
                 val lookup = when (val outcome = CardLookup.lookup(app, row.reading)) {
@@ -250,6 +256,15 @@ class BulkSellViewModel(app: Application) : AndroidViewModel(app) {
     override fun onCleared() {
         identifyJob?.cancel()
         runCatching { photoDir.deleteRecursively() }
+    }
+}
+
+/** The cards and all text lines (centre, height, slope) read on one photo. */
+private fun StringBuilder.appendPhoto(number: Int, read: MultiCardReader.PhotoReading) {
+    appendLine("== Photo $number: ${read.cards.size} cards, ${read.lines.size} lines")
+    read.cards.forEach { appendLine("card: ${it.reading.display} ${it.reading.name.orEmpty()}") }
+    read.lines.sortedWith(compareBy({ it.cy }, { it.cx })).forEach { l ->
+        appendLine("${l.cx.toInt()},${l.cy.toInt()} h${l.height.toInt()} ${Math.toDegrees(l.angle.toDouble()).toInt()}° ${l.text}")
     }
 }
 

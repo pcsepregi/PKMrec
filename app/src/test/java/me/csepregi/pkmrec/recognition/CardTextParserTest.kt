@@ -246,4 +246,16 @@ class CardTextParserTest {
         val b = CardReading("PAL", "123", "193", name = "B")
         assertEquals(a.key, b.key)
     }
+
+    @Test
+    fun `junk before a padded number is dropped`() {
+        val reading = CardTextParser.parse(listOf(OcrLine("PBL#115/084", 0, 20)), 20)
+        assertEquals("115/084", reading?.display)
+    }
+
+    @Test
+    fun `a slash read as a one between padded numbers`() {
+        assertEquals("112/083", CardTextParser.fixSlashReadAsV("1121083"))
+        assertEquals("1234567", CardTextParser.fixSlashReadAsV("1234567"))
+    }
 }

@@ -76,7 +76,7 @@
     <string name="lookup_variant_line">Változat: %1$s · angolul %2$d db</string>
     <string name="lookup_other_languages">Más nyelven megvan (%1$d db)</string>
     <string name="lookup_open_tcg">Megnyitás a TCG Collectoron</string>
-    <string name="bulk_help">Tedd ki az eladott lapokat egy asztalra egymás mellé, egyenesen, és fotózd le őket (több fotó is lehet), vagy válassz képeket a galériából. Utána nyomd meg az Azonosítás gombot.</string>
+    <string name="bulk_help">Tedd ki az eladott lapokat egy asztalra (ferdén is lehet, de a bal alsó sarkukban lévő lapszámot semmi ne takarja), és fotózd le őket (több fotó is lehet), vagy válassz képeket a galériából. Utána nyomd meg az Azonosítás gombot.</string>
     <string name="bulk_take_photo">Fotó</string>
     <string name="bulk_from_file">Fájlból</string>
     <string name="bulk_no_camera">Nem sikerült elindítani a kamerát.</string>
@@ -87,6 +87,8 @@
     <string name="bulk_searching_cards">Lapok keresése a TCG Collectoron…</string>
     <string name="bulk_unreadable">%1$d képet nem sikerült beolvasni.</string>
     <string name="bulk_none_found">Nem találtam lapszámot a képeken. Fotózd közelebbről, hogy a lapok alján lévő szám olvasható legyen.</string>
+    <string name="bulk_ocr_copy">Beolvasott szöveg másolása (debug)</string>
+    <string name="bulk_ocr_copied">Beolvasott szöveg a vágólapon</string>
     <string name="bulk_cards_found">%1$d lap a képeken, ebből %2$d azonosítva</string>
     <string name="bulk_row_searching">Keresem: %1$s…</string>
     <string name="bulk_row_not_found">Nem találtam a TCG Collectoron: %1$s</string>

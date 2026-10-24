@@ -7,19 +7,19 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Settings
@@ -45,8 +45,11 @@ import me.csepregi.pkmrec.R
 import me.csepregi.pkmrec.tcg.SessionState
 import me.csepregi.pkmrec.tcg.TcgSession
 
-/** All feature buttons have the same height, whatever the length of their text. */
-private val FEATURE_CARD_HEIGHT = 150.dp
+/**
+ * All feature buttons have the same height, whatever the length of their text: they share the
+ * screen below the header, so all of them fit without scrolling, but grow no taller than this.
+ */
+private val FEATURE_CARD_MAX_HEIGHT = 150.dp
 
 /**
  * One entry on the home screen; [accent] is the colour the button's gradient fades into.
@@ -66,8 +69,8 @@ fun HomeScreen(onOpenSettings: () -> Unit, onLogin: () -> Unit, onRecognize: () 
     val features = listOf(
         Feature(R.string.feature_recognition, R.string.feature_recognition_desc, R.drawable.feature_scan, Neon.GlowSoft, open = onRecognize),
         Feature(R.string.feature_pokedex, R.string.feature_pokedex_desc, R.drawable.feature_pokedex, Neon.Purple, open = onPokedex),
-        Feature(R.string.feature_bulk_sell, R.string.feature_bulk_sell_desc, R.drawable.feature_bulk_sell, Neon.Purple, open = onBulkSell),
         Feature(R.string.feature_sealed, R.string.feature_sealed_desc, R.drawable.feature_sealed, Neon.GlowSoft, needsLogin = false, open = onSealed),
+        Feature(R.string.feature_bulk_sell, R.string.feature_bulk_sell_desc, R.drawable.feature_bulk_sell, Neon.Purple, open = onBulkSell),
     )
     val session by TcgSession.state.collectAsState()
 
@@ -76,15 +79,17 @@ fun HomeScreen(onOpenSettings: () -> Unit, onLogin: () -> Unit, onRecognize: () 
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Header(onOpenSettings)
             SessionStatus(state = session, onLogin = onLogin)
-            Spacer(Modifier.height(4.dp))
             features.forEach { feature ->
-                FeatureButton(feature, onClick = { if (feature.needsLogin && session is SessionState.LoggedOut) onLogin() else feature.open() })
+                FeatureButton(
+                    feature,
+                    onClick = { if (feature.needsLogin && session is SessionState.LoggedOut) onLogin() else feature.open() },
+                    modifier = Modifier.weight(1f, fill = false),
+                )
             }
         }
     }
@@ -123,17 +128,19 @@ private fun Header(onOpenSettings: () -> Unit) {
 }
 
 @Composable
-private fun FeatureButton(feature: Feature, onClick: () -> Unit) {
+private fun FeatureButton(feature: Feature, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(22.dp)
-    Box(
-        modifier = Modifier
+    BoxWithConstraints(
+        modifier = modifier
             .fillMaxWidth()
-            .height(FEATURE_CARD_HEIGHT)
+            .heightIn(max = FEATURE_CARD_MAX_HEIGHT)
+            .fillMaxHeight()
             .clip(shape)
             .background(Brush.linearGradient(listOf(Color(0xFF0B5FD6), Color(0xFF0A2A6B), feature.accent.copy(alpha = 0.85f))))
             .border(1.5.dp, Brush.linearGradient(listOf(Neon.Glow, Neon.GlowSoft.copy(alpha = 0.4f), feature.accent)), shape)
             .clickable(onClick = onClick),
     ) {
+        val compact = maxHeight < 130.dp
         Canvas(modifier = Modifier.fillMaxSize()) { drawFaintCard(Color.White.copy(alpha = 0.10f)) }
         Row(
             modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
@@ -144,14 +151,14 @@ private fun FeatureButton(feature: Feature, onClick: () -> Unit) {
                 painter = painterResource(feature.icon),
                 contentDescription = null,
                 modifier = Modifier
-                    .size(92.dp)
+                    .size(minOf(92.dp, maxHeight - 20.dp).coerceAtLeast(40.dp))
                     .clip(RoundedCornerShape(18.dp))
                     .border(1.5.dp, Neon.Glow.copy(alpha = 0.7f), RoundedCornerShape(18.dp)),
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     stringResource(feature.title),
-                    style = MaterialTheme.typography.headlineMedium,
+                    style = if (compact) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
                 )
@@ -159,7 +166,7 @@ private fun FeatureButton(feature: Feature, onClick: () -> Unit) {
                     stringResource(feature.description),
                     style = MaterialTheme.typography.bodyMedium,
                     color = Neon.Text.copy(alpha = 0.85f),
-                    maxLines = 3,
+                    maxLines = if (compact) 2 else 3,
                     overflow = TextOverflow.Ellipsis,
                 )
             }

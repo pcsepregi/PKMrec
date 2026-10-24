@@ -1,6 +1,9 @@
 package me.csepregi.pkmrec.ui
 
 import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.widget.Toast
@@ -148,6 +151,13 @@ fun BulkSellScreen(onBack: () -> Unit, onLogin: () -> Unit) {
             }
             if (state.identified && state.rows.isEmpty()) {
                 Text(stringResource(R.string.bulk_none_found), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            }
+            state.ocrReport?.let { report ->
+                OutlinedButton(onClick = {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    clipboard.setPrimaryClip(ClipData.newPlainText("PKMrec bulk sell OCR", report))
+                    Toast.makeText(context, R.string.bulk_ocr_copied, Toast.LENGTH_SHORT).show()
+                }) { Text(stringResource(R.string.bulk_ocr_copy)) }
             }
             if (state.rows.isNotEmpty()) {
                 val found = state.rows.count { it.card != null }

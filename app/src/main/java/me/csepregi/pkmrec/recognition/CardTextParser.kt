@@ -67,6 +67,11 @@ object CardTextParser {
      * Also accepts a backslash or pipe read instead of the slash.
      */
     private val SLASH_AS_V = Regex("""^(\d{1,3})[V\\|](\d{2,3})$""")
+    /** A zero-padded number with its slash read as a one: "1121083" → "112/083". */
+    private val SLASH_AS_ONE = Regex("""^(\d{3})[1IL|](\d{3})$""")
+
+    /** Three digits ending a number part with junk before them, e.g. the set code box in "PBL#115". */
+    private val PADDED_NUMBER_AT_END = Regex("""(\d{3})$""")
     private val GLUED_EN = Regex("""^([A-Z0-9]{2,4})EN$""")
     private val SET_CODE = Regex("""^[A-Z0-9]{2,4}$""")
     private val NOT_SET_CODES = setOf("EN", "HP", "EX", "GX", "VMAX", "VSTAR", "TM", "ILLUS", "THE")
@@ -139,6 +144,7 @@ object CardTextParser {
             if (total.count { it.isDigit() } < 2) continue
             val number = normalizeNumberPart(token.substring(0, slash))
                 ?: numberAfterSymbol(token.substring(0, slash))
+                ?: paddedNumberAtEnd(token.substring(0, slash), total)
                 ?: continue
             val code = codeBeforeEn(tokens.subList(0, index))
                 ?: codeBeforeEn(tokens.subList(index + 1, tokens.size))
@@ -223,8 +229,19 @@ object CardTextParser {
         return splits.singleOrNull()
     }
 
+    /**
+     * Cards with a 3-digit total print a zero-padded 3-digit number, so the last three digits before
+     * the slash are the number whatever was read before them ("PBL#115/084" → 115).
+     */
+    internal fun paddedNumberAtEnd(raw: String, total: String): String? =
+        if (total.length == 3 && total.all { it.isDigit() }) PADDED_NUMBER_AT_END.find(raw)?.groupValues?.get(1) else null
+
     /** "14V132" → "141/132" (the V swallowed "1/"); "123V193" → "123/193" (the V is just the slash). */
     internal fun fixSlashReadAsV(token: String): String {
+        SLASH_AS_ONE.matchEntire(token)?.let { one ->
+            val (number, total) = one.destructured
+            return if (total.toInt() in 10..MAX_TOTAL) "$number/$total" else token
+        }
         val match = SLASH_AS_V.matchEntire(token) ?: return token
         val (number, total) = match.destructured
         val fixedNumber = if (number.length < total.length) number + "1" else number

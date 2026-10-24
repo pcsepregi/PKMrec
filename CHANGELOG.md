@@ -6,6 +6,12 @@ Release notes shown in the app's update dialog are taken from the matching secti
 
 - Enable R8 code shrinking for a smaller APK.
 
+## 2.0.1
+
+- Home screen: "Tömeges eladás" is now the last button, and all four buttons fit on the screen without scrolling.
+- Tömeges eladás finds cards on real table photos: the photo is now also read in overlapping pieces enlarged twice (card numbers are only about 20 pixels tall on such a photo), and cards lying at an angle are handled (each card's name is looked for along the card's own slope). Numbers with the set code box read into them ("PBL#115/084") or with the slash read as a 1 ("1121083") are understood too.
+- Debug mode: Tömeges eladás has a "Beolvasott szöveg másolása" button with everything read on the photos, for tuning.
+
 ## 2.0.0
 
 - New main-screen menu "Tömeges eladás": take photos of the cards you sold with the camera button on the screen, or pick photos from the gallery, then press "Azonosítás". The app finds every card number on the photos and looks each card up on TCG Collector. Each card gets a row with its picture, set, number and the variants you own with their counts; pick the variant (it is preselected when you own only one) and "Levesz" removes one copy from your collection, with "Visszavonás" for 6 seconds. The same card twice on the photos is two rows. Cards that need a choice or were not found are at the end of the list; rows can be deleted.
