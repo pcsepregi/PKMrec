@@ -26,20 +26,31 @@ import kotlin.math.roundToInt
  *    so the small set code and number are read more reliably. When just the card's
  *    corner is shown up close, the first pass is enough.
  *
- * Reports the reading of each frame (or null) and the lines used. Results are delivered on the main thread.
+ * Reports the reading of each frame (or null), the lines used and, with a reading, a greyscale crop of the
+ * area next to the number where the set symbol is printed (see [SymbolMatcher]). Results are delivered on
+ * the main thread.
  *
  * [loadNames] gives the Pokémon names used to tell the card name from attack and ability names;
  * it is called once, on the analysis thread.
  */
 class CardTextAnalyzer(
     private val loadNames: () -> List<String> = { emptyList() },
-    private val onFrame: (reading: CardReading?, lines: List<OcrLine>) -> Unit,
+    private val onFrame: (reading: CardReading?, lines: List<OcrLine>, symbol: GrayImage?) -> Unit,
 ) : ImageAnalysis.Analyzer, Closeable {
 
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
     private companion object {
-        val NUMBER_LIKE = Regex("""\w{1,5}\s*/\s*\w{2,5}""")
+        /**
+         * A card number such as "123/193", "TG05/TG30" or a misread "O15/128" or cut "SVI4/SV9": up to two
+         * letters, then digits (or letters OCR confuses with digits) on both sides of the slash, with at
+         * least two real digits.
+         * Not "com/cards" or "cards/38896" from a web address on a screen.
+         */
+        val NUMBER_LIKE = Regex("""(?<![\w/])[A-Za-z]{0,2}[0-9OoQDIlSBZGT]{1,3}\s*/\s*[A-Za-z]{0,2}[0-9OoQDIlSBZGT]{1,3}(?![\w/])""")
+
+        fun isNumberLike(text: String): Boolean =
+            NUMBER_LIKE.findAll(text).any { match -> match.value.count { it.isDigit() } >= 2 }
 
         /** The short "weakness / resistance / retreat" label line just above the number (OCR: "TEtrat", "weakness2"). */
         val WEAKNESS_LINE = Regex("""weak|resist|retreat|etreat|etrat""", RegexOption.IGNORE_CASE)
@@ -52,9 +63,9 @@ class CardTextAnalyzer(
     /** One frame at a time: frames arriving while OCR is still running are dropped. */
     @Volatile private var busy = false
 
-    private fun deliver(reading: CardReading?, lines: List<OcrLine>) {
+    private fun deliver(reading: CardReading?, lines: List<OcrLine>, symbol: GrayImage? = null) {
         busy = false
-        if (!paused) onFrame(reading, lines)
+        if (!paused) onFrame(reading, lines, symbol)
     }
 
     override fun analyze(image: ImageProxy) {
@@ -82,7 +93,8 @@ class CardTextAnalyzer(
                     return@addOnCompleteListener
                 }
                 val fullLines = task.result.toLines()
-                val quick = CardTextParser.parse(fullLines, height, nameFinder)
+                val quickParsed = CardTextParser.parseWithLine(fullLines, height, nameFinder)
+                val quick = quickParsed?.reading
 
                 // Pass 2 region: the bottom strip when the whole card is in view; otherwise, when no valid
                 // number came out (e.g. white outlined digits on a dark full-art card), the area around
@@ -94,11 +106,22 @@ class CardTextAnalyzer(
                     else -> bottomStrip(fullLines, width, height) ?: if (quick == null) numberRegion(fullLines, width, height) else null
                 }
                 if (region == null) {
+                    val symbol = quickParsed?.let { parsed ->
+                        symbolArea(parsed.numberLine, Strip(0, 0, width, height))?.let { area ->
+                            runCatching { luminance(image, rotation, area).forSymbol(parsed.numberLine) }.getOrNull()
+                        }
+                    }
                     image.close()
-                    deliver(quick, fullLines)
+                    deliver(quick, fullLines, symbol)
                     return@addOnCompleteListener
                 }
 
+                // The region's brightness, kept for cutting out the set symbol once pass 2 found the number.
+                val regionLuminance = if (region.right <= width && region.bottom <= height) {
+                    runCatching { luminance(image, rotation, region) }.getOrNull()
+                } else {
+                    null
+                }
                 val frame = try {
                     image.toBitmap()
                 } catch (e: Exception) {
@@ -136,7 +159,17 @@ class CardTextAnalyzer(
                         val inv = if (second.isSuccessful) linesOf(second.result) else emptyList()
                         // All readings take part; the parser prefers complete lines with a set code.
                         val merged = fullLines + plain + inv
-                        deliver(CardTextParser.parse(merged, height, nameFinder) ?: quick, merged)
+                        val parsed = CardTextParser.parseWithLine(merged, height, nameFinder) ?: quickParsed
+                        val symbol = parsed?.let { p ->
+                            val area = symbolArea(p.numberLine, region) ?: return@let null
+                            regionLuminance?.let { lum ->
+                                runCatching {
+                                    lum.cropped(area.left - region.left, area.top - region.top, area.width, area.height)
+                                        .forSymbol(p.numberLine)
+                                }.getOrNull()
+                            }
+                        }
+                        deliver(parsed?.reading, merged, symbol)
                     }
                 }
             }
@@ -144,7 +177,7 @@ class CardTextAnalyzer(
 
     /** Around the number-like lines, widened to the left to catch a lost leading digit and the set code. */
     private fun numberRegion(lines: List<OcrLine>, width: Int, height: Int): Strip? {
-        val numbers = lines.filter { NUMBER_LIKE.containsMatchIn(it.text) }
+        val numbers = lines.filter { isNumberLike(it.text) }
         if (numbers.isEmpty()) return null
         val h = numbers.maxOf { it.height }.coerceAtLeast(10)
         val left = max(0, numbers.minOf { it.left } - 3 * h)
@@ -202,7 +235,7 @@ class CardTextAnalyzer(
 
     /** A number like "123/193" printed at least ~2.2 % of the frame height tall means the corner is shown up close. */
     private fun isCloseUp(lines: List<OcrLine>, height: Int): Boolean {
-        val numberHeight = lines.filter { NUMBER_LIKE.containsMatchIn(it.text) }.maxOfOrNull { it.height } ?: return false
+        val numberHeight = lines.filter { isNumberLike(it.text) }.maxOfOrNull { it.height } ?: return false
         return numberHeight >= height * 0.022f
     }
 
@@ -212,7 +245,62 @@ class CardTextAnalyzer(
         invertedBuffer = null
     }
 
-    private data class Strip(val left: Int, val top: Int, val right: Int, val bottom: Int)
+    private data class Strip(val left: Int, val top: Int, val right: Int, val bottom: Int) {
+        val width: Int get() = right - left
+        val height: Int get() = bottom - top
+    }
+
+    /**
+     * Where the set symbol can be, inside [bounds]: next to the number line, mostly to its left (the
+     * regulation mark and the symbol come before the number; OCR sometimes glues them into the line).
+     */
+    private fun symbolArea(line: OcrLine, bounds: Strip): Strip? {
+        val h = line.height.coerceAtLeast(8)
+        val area = Strip(
+            max(bounds.left, line.left - 3 * h),
+            max(bounds.top, line.top - h / 2),
+            min(bounds.right, line.left + 2 * h),
+            min(bounds.bottom, line.bottom + h / 2),
+        )
+        return area.takeIf { it.width >= 2 * h && it.height >= h }
+    }
+
+    /** Scaled so the number text is [SymbolMatcher.NUMBER_HEIGHT] pixels tall. */
+    private fun GrayImage.forSymbol(numberLine: OcrLine): GrayImage {
+        val factor = SymbolMatcher.NUMBER_HEIGHT.toFloat() / numberLine.height.coerceAtLeast(8)
+        return scaled(max(1, (width * factor).roundToInt()), max(1, (height * factor).roundToInt()))
+    }
+
+    /**
+     * The brightness (Y plane) of [area], given in upright frame coordinates, read straight from the
+     * camera image: no bitmap of the whole frame is needed.
+     */
+    private fun luminance(image: ImageProxy, rotation: Int, area: Strip): GrayImage {
+        val plane = image.planes[0]
+        val buffer = plane.buffer
+        val rowStride = plane.rowStride
+        val pixelStride = plane.pixelStride
+        val sensorWidth = image.width
+        val sensorHeight = image.height
+        val pixels = FloatArray(area.width * area.height)
+        for (y in 0 until area.height) {
+            val uy = area.top + y
+            for (x in 0 until area.width) {
+                val ux = area.left + x
+                val sx: Int
+                val sy: Int
+                when (rotation) {
+                    90 -> { sx = uy; sy = sensorHeight - 1 - ux }
+                    180 -> { sx = sensorWidth - 1 - ux; sy = sensorHeight - 1 - uy }
+                    270 -> { sx = sensorWidth - 1 - uy; sy = ux }
+                    else -> { sx = ux; sy = uy }
+                }
+                val index = sy.coerceIn(0, sensorHeight - 1) * rowStride + sx.coerceIn(0, sensorWidth - 1) * pixelStride
+                pixels[y * area.width + x] = (buffer.get(index).toInt() and 0xFF) / 255f
+            }
+        }
+        return GrayImage(area.width, area.height, pixels)
+    }
 
     private class Crop(val bitmap: Bitmap, val scale: Float)
 
@@ -226,8 +314,11 @@ class CardTextAnalyzer(
         val top = lines.minOf { it.top }
         val weakness = lines.filter { it.text.length <= 30 && WEAKNESS_LINE.containsMatchIn(it.text) }.maxByOrNull { it.top }
         val (stripTop, stripBottom) = if (weakness != null && weakness.top - top >= height / 6) {
+            // The number is a few label heights below the weakness line; the text above may include
+            // more than the card (e.g. a web page on a screen), so it only limits the strip.
             val span = weakness.top - top
-            max(0, weakness.top) to min(height, weakness.bottom + (span * 0.28f).roundToInt())
+            val below = min((span * 0.28f).roundToInt(), 5 * weakness.height.coerceAtLeast(10))
+            max(0, weakness.top) to min(height, weakness.bottom + below)
         } else {
             val bottom = lines.maxOf { it.bottom }
             val span = bottom - top

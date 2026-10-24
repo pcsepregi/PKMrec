@@ -10,6 +10,9 @@ class CardTextParserTest {
 
     private fun line(text: String, top: Int, h: Int = 20) = OcrLine(text, top, top + h)
 
+    /** A line read from the enlarged bottom strip (second pass). */
+    private fun strip(text: String, top: Int, h: Int = 20) = OcrLine(text, top, top + h, fromStrip = true)
+
     private fun parse(vararg lines: OcrLine) = CardTextParser.parse(lines.toList(), height)
 
     @Test
@@ -177,16 +180,18 @@ class CardTextParserTest {
             line("Ability", 244, h = 47),
             line("3 Wave Splash", 605),
             line("weakness2", 878),
-            line("2573", 1016),
+            strip("2573", 1016),
             line("\$0.36", 1255),
             line("1+", 1420),
         )!!
         assertEquals("25/73", r.display)
-        assertEquals("123/193", parse(line("2573", 900), line("123/193", 950))!!.display)
+        assertEquals("123/193", parse(strip("2573", 900), line("123/193", 950))!!.display)
+        // Outside the bottom strip (e.g. other text on a screen) a bare number is not taken.
+        assertNull(parse(line("2573", 950)))
         // Years and ambiguous splits are not numbers.
-        assertNull(parse(line("2017", 950)))
-        assertNull(parse(line("1231", 950)))
-        assertNull(parse(line("0909", 950)))
+        assertNull(parse(strip("2017", 950)))
+        assertNull(parse(strip("1231", 950)))
+        assertNull(parse(strip("0909", 950)))
     }
 
     @Test
@@ -195,7 +200,7 @@ class CardTextParserTest {
             line("Blessings of the Deeg", 242, h = 96),
             line("Ability", 244, h = 47),
             line("Once during your turn", 321),
-            line("2573", 1016),
+            strip("2573", 1016),
         )
         assertNull(CardTextParser.parse(manaphy, height, names)!!.name)
         // Without the list the old rule (tallest line at the top) is kept.
@@ -226,6 +231,13 @@ class CardTextParserTest {
         assertEquals(true, names.containsPokemonName("Mew"))
         assertEquals(false, names.containsPokemonName("Mow"))
         assertEquals(false, names.containsPokemonName("Cablegram"))
+    }
+
+    @Test
+    fun `reports the line the number was read from`() {
+        val parsed = CardTextParser.parseWithLine(listOf(line("Illus. Nurikabe", 930), line("F 109/172", 955)), height)!!
+        assertEquals("F 109/172", parsed.numberLine.text)
+        assertEquals("109/172", parsed.reading.display)
     }
 
     @Test

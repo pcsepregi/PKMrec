@@ -29,12 +29,12 @@
     <string name="settings_account">TCG Collector fiók</string>
 
     <!-- Camera / recognition -->
-    <string name="camera_hint">Mutasd a teljes kártyát a keretben, vagy közelről csak a bal alsó sarkát (szettkód és szám).</string>
+    <string name="camera_hint">Mutasd a teljes kártyát a keretben, vagy közelről csak a bal alsó sarkát (szettkód vagy szett szimbólum és szám).</string>
     <string name="camera_glare_tip">Közelről nem éles? Tartsd messzebb a telefont, a 2x-es zoom így is elég nagyra hozza. Csillog? Döntsd meg kicsit, a vakut hagyd kikapcsolva. Koppintással oda élesít, ahová koppintasz.</string>
     <string name="camera_searching">Keresem a kártya számát…</string>
     <string name="camera_reading">Olvasom: %1$s</string>
     <string name="camera_recognized">Felismert kártya</string>
-    <string name="camera_no_set_code">Szettkódot nem láttam a kártyán (régebbi kártya?). A keresésnél a név is segít.</string>
+    <string name="camera_no_set_code">Szettkódot nem láttam a kártyán (régebbi kártya?). A keresésnél a név és a szett szimbólum is segít.</string>
     <string name="camera_rescan">Új szkennelés</string>
     <string name="camera_manual_entry">Kézi bevitel</string>
     <string name="camera_torch_on">Vaku be</string>
@@ -64,6 +64,8 @@
     <string name="lookup_pick_candidate">Melyik kártya ez?</string>
     <string name="lookup_pick_variant">Melyik változat van a kezedben?</string>
     <string name="lookup_other_card">Másik kártya</string>
+    <string name="lookup_symbol_score">Szimbólum egyezés: %1$d%%</string>
+    <string name="lookup_by_symbol">A szett szimbólum alapján választottam. Ha nem ez az, nyomd meg a „Másik kártya” gombot.</string>
     <string name="lookup_none_of_these">Egyik sem</string>
     <string name="lookup_none_of_these_hint">Visszaviszlek a kamerához. Próbáld közelebbről, a bal alsó sarkot mutatva, vagy add meg kézzel a szettkódot és a számot.</string>
     <string name="lookup_other_variant">Másik változat</string>

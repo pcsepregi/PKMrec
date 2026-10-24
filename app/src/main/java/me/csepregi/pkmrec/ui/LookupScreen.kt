@@ -3,6 +3,7 @@ package me.csepregi.pkmrec.ui
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,10 +34,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -45,11 +52,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import me.csepregi.pkmrec.R
+import me.csepregi.pkmrec.recognition.SetSymbols
 import me.csepregi.pkmrec.tcg.CardVariant
 import me.csepregi.pkmrec.tcg.TcgCard
 import me.csepregi.pkmrec.tcg.TcgErrorKind
 import me.csepregi.pkmrec.update.UpdateManager
+import kotlin.math.roundToInt
 
 /** Card proportions for images. */
 internal const val CARD_IMAGE_ASPECT = 63f / 88f
@@ -62,7 +73,7 @@ fun LookupScreen(onRescan: () -> Unit, onHome: () -> Unit, onLogin: () -> Unit) 
 
     LaunchedEffect(Unit) {
         val reading = CurrentScan.reading
-        if (reading == null) onRescan() else vm.start(reading)
+        if (reading == null) onRescan() else vm.start(reading, CurrentScan.symbol)
     }
     BackHandler { onRescan() }
 
@@ -119,7 +130,12 @@ fun LookupScreen(onRescan: () -> Unit, onHome: () -> Unit, onLogin: () -> Unit) 
                 is LookupUiState.PickCandidate -> {
                     Text(stringResource(R.string.lookup_pick_candidate), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     s.candidates.forEach { card ->
-                        CardRow(card = card, onClick = { vm.chooseCard(card) })
+                        CardRow(
+                            card = card,
+                            symbolId = s.symbols?.symbolIds?.get(card.id),
+                            symbolScore = s.symbols?.scores?.get(card.id),
+                            onClick = { vm.chooseCard(card) },
+                        )
                     }
                     OutlinedButton(onClick = onRescan, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.lookup_none_of_these))
@@ -133,6 +149,7 @@ fun LookupScreen(onRescan: () -> Unit, onHome: () -> Unit, onLogin: () -> Unit) 
 
                 is LookupUiState.PickVariant -> {
                     CardHeader(s.card)
+                    if (s.bySymbol) BySymbolNote()
                     Text(stringResource(R.string.lookup_pick_variant), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     s.card.variants.forEach { variant ->
                         VariantRow(variant = variant, onClick = { vm.chooseVariant(s.card, variant) })
@@ -149,6 +166,7 @@ fun LookupScreen(onRescan: () -> Unit, onHome: () -> Unit, onLogin: () -> Unit) 
                     onLogin = onLogin,
                     onRescan = onRescan,
                     onOtherVariant = { vm.backToVariants(s.card) },
+                    onOtherCard = { vm.backToCandidates() },
                 )
             }
         }
@@ -172,6 +190,7 @@ private fun VerdictContent(
     onLogin: () -> Unit,
     onRescan: () -> Unit,
     onOtherVariant: () -> Unit,
+    onOtherCard: () -> Unit,
 ) {
     val context = LocalContext.current
     val color = if (state.owned) VerdictColors.Owned else VerdictColors.NotOwned
@@ -207,6 +226,7 @@ private fun VerdictContent(
     }
 
     CardHeader(state.card, large = true)
+    if (state.bySymbol) BySymbolNote()
 
     PokedexSection(pokedex, onRetry = onRetryPokedex, onLogin = onLogin)
 
@@ -214,6 +234,11 @@ private fun VerdictContent(
     if (state.canPickOtherVariant) {
         OutlinedButton(onClick = onOtherVariant, modifier = Modifier.fillMaxWidth()) {
             Text(stringResource(R.string.lookup_other_variant))
+        }
+    }
+    if (state.canGoBackToCandidates) {
+        OutlinedButton(onClick = onOtherCard, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.lookup_other_card))
         }
     }
     TextButton(
@@ -310,7 +335,7 @@ internal fun CardImage(card: TcgCard, width: Int) {
 }
 
 @Composable
-private fun CardRow(card: TcgCard, onClick: () -> Unit) {
+private fun CardRow(card: TcgCard, symbolId: String?, symbolScore: Float?, onClick: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -318,13 +343,51 @@ private fun CardRow(card: TcgCard, onClick: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             CardImage(card, width = 70)
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(card.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text(card.expansionName + (card.expansionCode?.let { " ($it)" } ?: ""), style = MaterialTheme.typography.bodyMedium)
                 Text(numberAndRarity(card), style = MaterialTheme.typography.bodySmall)
+                if (symbolScore != null) {
+                    Text(
+                        stringResource(R.string.lookup_symbol_score, (symbolScore * 100).roundToInt()),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
+            if (symbolId != null) SetSymbol(symbolId)
         }
     }
+}
+
+/** The set symbol on a light badge (many symbols are black). */
+@Composable
+private fun SetSymbol(id: String) {
+    val context = LocalContext.current
+    var bitmap by remember(id) { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(id) {
+        bitmap = withContext(Dispatchers.IO) { SetSymbols.bitmap(context, id)?.asImageBitmap() }
+    }
+    val image = bitmap ?: return
+    Box(
+        modifier = Modifier
+            .size(44.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color.White)
+            .padding(6.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Image(bitmap = image, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
+    }
+}
+
+@Composable
+private fun BySymbolNote() {
+    Text(
+        stringResource(R.string.lookup_by_symbol),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @Composable

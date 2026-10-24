@@ -81,6 +81,7 @@ import me.csepregi.pkmrec.diagnostics.ErrorLog
 import me.csepregi.pkmrec.pokedex.PokemonNames
 import me.csepregi.pkmrec.recognition.CardReading
 import me.csepregi.pkmrec.recognition.CardTextAnalyzer
+import me.csepregi.pkmrec.recognition.GrayImage
 import me.csepregi.pkmrec.recognition.OcrLine
 import me.csepregi.pkmrec.recognition.ReadingStabilizer
 import java.util.concurrent.Executors
@@ -145,14 +146,24 @@ private fun ScannerContent(onBack: () -> Unit, onRecognized: (CardReading) -> Un
     var showManual by remember { mutableStateOf(false) }
     var showRaw by remember { mutableStateOf(false) }
     var rawLines by remember { mutableStateOf<List<OcrLine>>(emptyList()) }
+    var rawSymbol by remember { mutableStateOf<String?>(null) }
+    // Set symbol crops of the latest frames with a reading, for telling sets apart in the lookup.
+    val symbols = remember { ArrayDeque<Pair<CardReading, GrayImage>>() }
 
     val analyzer = remember {
-        CardTextAnalyzer(loadNames = { PokemonNames.all(context).map { it.name } }) { reading, lines ->
+        CardTextAnalyzer(loadNames = { PokemonNames.all(context).map { it.name } }) { reading, lines, symbol ->
             if (confirmed != null) return@CardTextAnalyzer
             rawLines = lines
+            rawSymbol = symbol?.let { "${it.width}x${it.height}" }
+            if (reading != null && symbol != null) {
+                symbols.addLast(reading to symbol)
+                while (symbols.size > 5) symbols.removeFirst()
+            }
             val stable = stabilizer.offer(reading)
             live = stabilizer.current
             if (stable != null) {
+                CurrentScan.symbol = symbols.lastOrNull { (r, _) -> r.number == stable.number && r.total == stable.total }?.second
+                symbols.clear()
                 confirmed = stable
                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
             }
@@ -270,7 +281,7 @@ private fun ScannerContent(onBack: () -> Unit, onRecognized: (CardReading) -> Un
                 }
             }
             if (showRaw) {
-                RawTextPanel(lines = rawLines, reading = confirmed ?: live)
+                RawTextPanel(lines = rawLines, reading = confirmed ?: live, symbol = rawSymbol)
             }
         }
 
@@ -361,6 +372,7 @@ private fun ScannerContent(onBack: () -> Unit, onRecognized: (CardReading) -> Un
             onDismiss = { showManual = false },
             onConfirm = { reading ->
                 showManual = false
+                CurrentScan.symbol = null
                 confirmed = reading
             },
         )
@@ -402,13 +414,14 @@ private fun focusAt(camera: Camera, view: PreviewView, x: Float, y: Float) {
 
 /** Debug view: what the text recognizer currently sees, so recognition problems can be reported. */
 @Composable
-private fun RawTextPanel(lines: List<OcrLine>, reading: CardReading?, modifier: Modifier = Modifier) {
+private fun RawTextPanel(lines: List<OcrLine>, reading: CardReading?, symbol: String?, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val sorted = lines.sortedBy { it.top }
     val report = buildString {
         appendLine("PKMrec ${BuildConfig.VERSION_NAME} OCR")
         appendLine("reading: " + (reading?.let { "${it.display} | mark=${it.regulationMark} | name=${it.name}" } ?: "-"))
-        sorted.forEach { appendLine((if (it.fromStrip) "*" else " ") + "[${it.top}-${it.bottom}] ${it.text}") }
+        appendLine("symbol crop: " + (symbol ?: "-"))
+        sorted.forEach { appendLine((if (it.fromStrip) "*" else " ") + "[${it.top}-${it.bottom} x${it.left}-${it.right}] ${it.text}") }
     }
     Card(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp)) {
