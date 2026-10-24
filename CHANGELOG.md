@@ -4,7 +4,6 @@ Release notes shown in the app's update dialog are taken from the matching secti
 
 ## Unreleased
 
-- Tests with real, anonymised TCG Collector page samples (needs saved pages from a logged-in browser).
 - Enable R8 code shrinking for a smaller APK.
 
 ## 0.12.1

@@ -22,7 +22,7 @@ Notes for continuing development in a new chat. Read together with `README.md`, 
   - `cardmarket/` – Cardmarket price (hidden WebView fetcher, extractor script, Pali's price rule, cache) and the ECB EUR–HUF rate
   - `diagnostics/` – error log and slow-recognition log (app private files, copied from Settings)
   - `ui/` – screens: Home, Settings, Login (WebView), Camera, Lookup (candidates, variants, verdict, Pokedex section, Cardmarket price), Pokédex search, Pokémon name list, Cardmarket debug
-- Unit tests in `app/src/test/...` (parser, stabilizer, matchers, search page parsing, Pokédex entries, update logic, Cardmarket price rule and cache, EUR–HUF parsing, set symbols, log formats, slow-scan tracking). TCG Collector page tests use hand-made HTML so far, not saved real pages.
+- Unit tests in `app/src/test/...` (parser, stabilizer, matchers, search page parsing, Pokédex entries, update logic, Cardmarket price rule and cache, EUR–HUF parsing, set symbols, log formats, slow-scan tracking). `tcg/RealPagesTest` runs the parsers on real TCG Collector pages saved from Pali's logged-in browser (Oct 2026: search list for 025/165, a card page, a Pokédex page filtered to his list), stored in `app/src/test/resources/tcg/`. New pages: save in desktop Chrome (Ctrl+S), run `tools/anonymize-tcg-page.py <saved.html> <fixture.html>` (replaces user, CSRF token, avatar; trims the site-wide variant table; drops scripts; makes links relative again) and check the result for anything personal: the repo is public. Still missing: an image-view page (`displayAs=images`).
 
 ## Build and release (important quirks)
 
@@ -97,7 +97,7 @@ From a review of security and error handling (no serious issues found: the app n
 
 ## Backlog
 
-See `CHANGELOG.md` under "Unreleased": tests with real anonymised page samples (needs pages saved from a logged-in browser), R8 shrinking (low value for a single user and risky: kotlinx.serialization, Jsoup and ML Kit need keep rules, and mistakes only show up on the phone). Optional hardening: restrict the hidden Cardmarket WebView's navigation to cardmarket.com.
+See `CHANGELOG.md` under "Unreleased": R8 shrinking (low value for a single user and risky: kotlinx.serialization, Jsoup and ML Kit need keep rules, and mistakes only show up on the phone). Optional hardening: restrict the hidden Cardmarket WebView's navigation to cardmarket.com.
 
 ## Ideas for later
 
