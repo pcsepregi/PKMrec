@@ -6,6 +6,10 @@ Release notes shown in the app's update dialog are taken from the matching secti
 
 - Enable R8 code shrinking for a smaller APK.
 
+## 1.2.1
+
+- Sealed catalog: a new installation starts with an empty list. The starting list that came with the app is removed from the app and the repository; lists already on a phone are not changed.
+
 ## 1.2.0
 
 - Sealed catalog: new "Excel export" in Settings. It saves an .xlsx file with one row per product: its picture, count, purchase price per piece and in total, Cardmarket price per piece in euros and forints, total value, difference, price date and a Cardmarket link, plus a total row. The file is for viewing; the JSON export stays the backup that can be imported.
@@ -42,7 +46,6 @@ New: Sealed catalog, your sealed Pokémon products (ETB, booster bundle, box, ti
 - Each product has a count and an average purchase price per piece in forints. When you add more pieces with a price, the average is updated.
 - Cardmarket price by your rule: English offers, skip the 2 cheapest, average the next 5. "Árak frissítése" loads the price of every product, one after the other.
 - Totals at the top: pieces, purchase total, current value in euros and forints, and the difference.
-- Your list from 24 October (82 pieces) is loaded on the first start.
 - Settings: refresh the product list, export and import your own list as a file.
 
 ## 1.0.2

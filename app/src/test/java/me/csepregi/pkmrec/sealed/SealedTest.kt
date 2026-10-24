@@ -25,15 +25,6 @@ class SealedTest {
     }
 
     @Test
-    fun `every product of the seed list is in the product list`() {
-        val seed = SealedInventory.parseSeed(File("src/main/assets/sealed_seed.tsv").readText())
-        assertEquals(54, seed.size)
-        assertEquals(82, seed.sumOf { it.second })
-        val ids = products.map { it.id }.toSet()
-        seed.forEach { (id, _) -> assertTrue("missing $id", id in ids) }
-    }
-
-    @Test
     fun `typed words find products in any order, with abbreviations and typos`() {
         assertEquals("Pitch Black Elite Trainer Box", first("pitch black etb"))
         assertEquals("Pitch Black Elite Trainer Box", first("etb pitch"))

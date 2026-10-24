@@ -72,13 +72,12 @@ data class SealedSummary(
 )
 
 /**
- * Pali's sealed products, kept in a JSON file on the phone. On first use the list in
- * `assets/sealed_seed.tsv` is loaded; export and import move the file between phones.
+ * The user's sealed products, kept in a JSON file on the phone (never in the app or the
+ * repository); export and import move the file between phones.
  */
 object SealedInventory {
 
     private const val FILE_NAME = "sealed_inventory.json"
-    private const val SEED_FILE = "sealed_seed.tsv"
 
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
     private val mutex = Mutex()
@@ -88,18 +87,14 @@ object SealedInventory {
 
     @Volatile private var loaded = false
 
-    /** Reads the file, or loads the seed list the first time. Safe to call more than once. */
+    /** Reads the file; without one the list is empty. Safe to call more than once. */
     suspend fun load(context: Context) {
         if (loaded) return
         mutex.withLock {
             if (loaded) return
             withContext(Dispatchers.IO) {
                 val file = file(context)
-                _items.value = if (file.exists()) {
-                    decode(file.readText())
-                } else {
-                    seed(context).also { write(context, it) }
-                }
+                _items.value = if (file.exists()) decode(file.readText()) else emptyList()
             }
             loaded = true
         }
@@ -151,15 +146,6 @@ object SealedInventory {
         }
     }
 
-    private fun seed(context: Context): List<SealedItem> {
-        val text = context.assets.open(SEED_FILE).bufferedReader().use { it.readText() }
-        val catalog = SealedCatalog.all(context).associateBy { it.id }
-        return parseSeed(text).mapNotNull { (id, count) ->
-            val product = catalog[id] ?: return@mapNotNull null
-            SealedItem(product.id, product.name, product.type, product.set, count)
-        }
-    }
-
     private fun write(context: Context, items: List<SealedItem>) {
         val file = file(context)
         val temp = File(file.parentFile, "$FILE_NAME.tmp")
@@ -176,17 +162,6 @@ object SealedInventory {
         json.decodeFromString(InventoryFile.serializer(), text).items.filter { it.count >= 0 }.distinctBy { it.id }
 
     private fun file(context: Context) = File(context.filesDir, FILE_NAME)
-
-    /** Lines of `idProduct<TAB>count[<TAB>anything]`; `#` comments are skipped. */
-    internal fun parseSeed(text: String): List<Pair<Int, Int>> = text.lineSequence()
-        .filter { it.isNotBlank() && !it.startsWith("#") }
-        .mapNotNull { line ->
-            val parts = line.split('\t')
-            val id = parts.getOrNull(0)?.trim()?.toIntOrNull() ?: return@mapNotNull null
-            val count = parts.getOrNull(1)?.trim()?.toIntOrNull()?.takeIf { it > 0 } ?: return@mapNotNull null
-            id to count
-        }
-        .toList()
 
     /** Imported items added to the current ones: counts add up, purchase prices are averaged by count. */
     internal fun merge(current: List<SealedItem>, imported: List<SealedItem>): List<SealedItem> {
