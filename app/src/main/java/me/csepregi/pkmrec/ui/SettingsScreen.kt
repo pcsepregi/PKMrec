@@ -53,6 +53,7 @@ import me.csepregi.pkmrec.diagnostics.SlowScanLog
 import me.csepregi.pkmrec.pokedex.NameListRefreshResult
 import me.csepregi.pkmrec.pokedex.PokemonNames
 import me.csepregi.pkmrec.sealed.SealedCatalog
+import me.csepregi.pkmrec.sealed.SealedImages
 import me.csepregi.pkmrec.sealed.SealedInventory
 import me.csepregi.pkmrec.sealed.SealedListRefreshResult
 import me.csepregi.pkmrec.sealed.SealedXlsx
@@ -341,7 +342,10 @@ private fun SealedSettings() {
             SealedInventory.load(context)
             val ok = withContext(Dispatchers.IO) {
                 runCatching {
-                    val bytes = SealedXlsx.build(SealedInventory.items.value, EurHuf.rate(context), EurHuf.rateDate(context))
+                    val bytes = SealedXlsx.build(SealedInventory.items.value, EurHuf.rate(context), EurHuf.rateDate(context)) { item ->
+                        // Twice the shown size, so the picture stays sharp when zoomed in.
+                        runCatching { SealedImages.forSheet(context, item, SealedXlsx.PICTURE_SIZE * 2) }.getOrNull()
+                    }
                     context.contentResolver.openOutputStream(uri, "wt")!!.use { it.write(bytes) }
                 }.isSuccess
             }
