@@ -206,7 +206,9 @@
     <string name="sealed_refresh_challenge">A Cardmarket ellenőrzést kér (%1$d / %2$d után megállt). Nyisd meg, pipáld ki, és utána onnan folytatódik.</string>
     <string name="sealed_image_later">A kép az első árlekéréskor töltődik le.</string>
     <string name="sealed_image_failed">A képet nem sikerült letölteni: %1$s</string>
-    <string name="sealed_refresh_view_hint">Itt látszik a Cardmarket. Ha ellenőrzést kér, pipáld ki itt, és a frissítés magától folytatódik.</string>
+    <string name="sealed_challenge_title">A Cardmarket ellenőrzést kér</string>
+    <string name="sealed_challenge_hint">Pipáld ki lent. Utána ez az ablak bezáródik, és az árlekérés magától folytatódik.</string>
+    <string name="sealed_challenge_close">Bezárás</string>
     <string name="sealed_refresh_failed">%1$d terméknél nem sikerült új árat lekérni, ezeknél a régi ár maradt.</string>
     <string name="sealed_add_hint">Termék hozzáadása (pl. pitch black etb)</string>
     <string name="sealed_no_match">Nincs ilyen termék a Cardmarket listában.</string>

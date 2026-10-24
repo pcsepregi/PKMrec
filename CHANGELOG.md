@@ -6,6 +6,10 @@ Release notes shown in the app's update dialog are taken from the matching secti
 
 - Enable R8 code shrinking for a smaller APK.
 
+## 1.1.3
+
+- Sealed catalog: when Cardmarket asks for its Cloudflare check during a price refresh, the check opens full screen, so the checkbox can be reached. After ticking it the window closes and the refresh continues. The small Cardmarket panel under the progress bar is gone.
+
 ## 1.1.2
 
 Sealed catalog fixes:

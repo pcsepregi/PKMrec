@@ -11,6 +11,9 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -30,8 +33,8 @@ class CardmarketPageException(message: String) : IOException(message)
 /**
  * Loads Cardmarket pages in an invisible WebView, like the in-app browser does, and reads them
  * with [CARDMARKET_EXTRACT_JS]. A plain HTTP client is stopped by Cloudflare; the WebView is not.
- * One page at a time. While a screen shows the WebView ([view]), a Cloudflare check waits for the
- * user to tick it instead of giving up after [TIMEOUT_MS].
+ * One page at a time. While a screen shows the WebView ([view], e.g. when [challenge] is on), a
+ * Cloudflare check waits for the user to tick it instead of giving up after [TIMEOUT_MS].
  */
 object CardmarketFetcher {
 
@@ -43,6 +46,11 @@ object CardmarketFetcher {
     private val main = Handler(Looper.getMainLooper())
     private val mutex = Mutex()
     private var webView: WebView? = null
+
+    private val _challenge = MutableStateFlow(false)
+
+    /** A Cloudflare check is showing in the WebView right now: a screen may show it to be ticked. */
+    val challenge: StateFlow<Boolean> = _challenge.asStateFlow()
 
     suspend fun load(context: Context, url: String): CardmarketPage = mutex.withLock {
         withContext(Dispatchers.Main) {
@@ -113,6 +121,7 @@ object CardmarketFetcher {
             fun finish(result: Result<T>) {
                 if (done) return
                 done = true
+                _challenge.value = false
                 main.removeCallbacksAndMessages(view)
                 view.webViewClient = WebViewClient()
                 if (cont.isActive) result.fold({ cont.resume(it) }, { cont.resumeWithException(it) })
@@ -135,7 +144,10 @@ object CardmarketFetcher {
                     when (val step = read(result)) {
                         is Step.Done -> finish(Result.success(step.value))
                         is Step.Fail -> finish(Result.failure(step.error))
-                        Step.Challenge -> challenged = true
+                        Step.Challenge -> {
+                            challenged = true
+                            _challenge.value = true
+                        }
                         Step.Retry -> if (++retries <= IMAGE_RETRIES) {
                             main.postAtTime({ if (!done) evaluate() }, view, SystemClock.uptimeMillis() + IMAGE_RETRY_MS)
                         }
@@ -161,6 +173,7 @@ object CardmarketFetcher {
             cont.invokeOnCancellation {
                 main.post {
                     done = true
+                    _challenge.value = false
                     main.removeCallbacksAndMessages(view)
                     view.stopLoading()
                 }

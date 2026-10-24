@@ -28,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -50,6 +51,8 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -133,8 +136,6 @@ fun SealedCatalogScreen(onBack: () -> Unit, onOpenItem: (Int) -> Unit) {
                 Text(stringResource(R.string.sealed_refreshing, p.done, p.total), style = MaterialTheme.typography.bodyMedium)
                 LinearProgressIndicator(progress = { if (p.total == 0) 0f else p.done.toFloat() / p.total }, modifier = Modifier.fillMaxWidth())
                 OutlinedButton(onClick = { SealedPrices.cancel() }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.sealed_refresh_cancel)) }
-                Hint(stringResource(R.string.sealed_refresh_view_hint))
-                CardmarketLiveView()
             } else {
                 Button(
                     onClick = { SealedPrices.refreshAll(context) },
@@ -191,6 +192,7 @@ fun SealedCatalogScreen(onBack: () -> Unit, onOpenItem: (Int) -> Unit) {
         }
     }
 
+    CardmarketChallengeDialog()
     checkUrl?.let { url ->
         CardmarketCheckDialog(url = url, onDone = {
             checkUrl = null
@@ -213,24 +215,37 @@ fun SealedCatalogScreen(onBack: () -> Unit, onOpenItem: (Int) -> Unit) {
 }
 
 /**
- * The WebView the refresh loads Cardmarket in, shown so that a Cloudflare check can be ticked in
- * place: the refresh waits for it and then goes on by itself.
+ * Shows the WebView the prices are loaded in, full screen, while Cardmarket asks for its Cloudflare
+ * check: the waiting page load goes on by itself once it is ticked, and the dialog closes.
  */
 @Composable
-private fun CardmarketLiveView() {
-    AndroidView(
-        modifier = Modifier.fillMaxWidth().height(260.dp).clip(RoundedCornerShape(12.dp)),
-        factory = { ctx ->
-            CardmarketFetcher.view(ctx).also { view ->
-                (view.parent as? ViewGroup)?.removeView(view)
-                view.settings.blockNetworkImage = false
+private fun CardmarketChallengeDialog() {
+    val challenge by CardmarketFetcher.challenge.collectAsState()
+    var closed by remember { mutableStateOf(false) }
+    LaunchedEffect(challenge) { if (!challenge) closed = false }
+    if (!challenge || closed) return
+    Dialog(onDismissRequest = { closed = true }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.sealed_challenge_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Hint(stringResource(R.string.sealed_challenge_hint))
+                AndroidView(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    factory = { ctx ->
+                        CardmarketFetcher.view(ctx).also { view ->
+                            (view.parent as? ViewGroup)?.removeView(view)
+                            view.settings.blockNetworkImage = false
+                        }
+                    },
+                    onRelease = { view ->
+                        (view.parent as? ViewGroup)?.removeView(view)
+                        view.settings.blockNetworkImage = true
+                    },
+                )
+                TextButton(onClick = { closed = true }, modifier = Modifier.align(Alignment.End)) { Text(stringResource(R.string.sealed_challenge_close)) }
             }
-        },
-        onRelease = { view ->
-            (view.parent as? ViewGroup)?.removeView(view)
-            view.settings.blockNetworkImage = true
-        },
-    )
+        }
+    }
 }
 
 @Composable
@@ -442,6 +457,7 @@ fun SealedItemScreen(id: Int, onBack: () -> Unit) {
             dismissButton = { TextButton(onClick = { askRemove = false }) { Text(stringResource(R.string.sealed_keep)) } },
         )
     }
+    CardmarketChallengeDialog()
     checkUrl?.let { url ->
         CardmarketCheckDialog(url = url, onDone = {
             checkUrl = null
