@@ -4,8 +4,13 @@ Release notes shown in the app's update dialog are taken from the matching secti
 
 ## Unreleased
 
-- Tests with real, anonymised TCG Collector page samples (needs saved pages from a logged-in browser).
 - Enable R8 code shrinking for a smaller APK.
+
+## 1.0.0
+
+PKMrec 1.0: the first full version. Everything planned for version 1 is done: card recognition with the camera, owned check with variants on TCG Collector, the card from your Pokedex list, Pokédex search, Cardmarket price in euros and forints, and self-update.
+- No changes in how the app works since 0.12.1.
+- New tests on real TCG Collector pages, so a change on the website is noticed when the app is built.
 
 ## 0.12.1
 
