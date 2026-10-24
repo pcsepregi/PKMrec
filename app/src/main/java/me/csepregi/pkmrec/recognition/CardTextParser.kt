@@ -185,8 +185,9 @@ object CardTextParser {
      */
     internal fun numberAfterSymbol(raw: String): String? {
         for (drop in 1..2) {
-            if (raw.length - drop < 1) return null
-            val number = normalizeNumberPart(raw.drop(drop)) ?: continue
+            val rest = raw.drop(drop)
+            if (rest.none { it.isDigit() }) return null
+            val number = normalizeNumberPart(rest) ?: continue
             if (number.all { it.isDigit() }) return number
         }
         return null

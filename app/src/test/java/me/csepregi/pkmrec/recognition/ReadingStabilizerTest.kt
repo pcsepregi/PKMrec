@@ -49,7 +49,7 @@ class ReadingStabilizerTest {
     }
 
     @Test
-    fun `unpadded numbers are confirmed without waiting for a set code`() {
+    fun `two-digit set totals are confirmed without waiting for a set code`() {
         val old = CardReading(null, "25", "73")
         val s = ReadingStabilizer()
         assertNull(s.offer(old))
