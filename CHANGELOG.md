@@ -6,6 +6,12 @@ Release notes shown in the app's update dialog are taken from the matching secti
 
 - Enable R8 code shrinking for a smaller APK.
 
+## 1.0.2
+
+Test build for the upcoming Sealed catalog (1.1.0):
+- Settings → Cardmarket debug screen: new "Sealed próba" button. It checks how sealed products (ETB, mini tin) can be found and priced on Cardmarket and adds the results to the report to copy.
+- No other changes.
+
 ## 1.0.1
 
 - Pokédex search: the name field is empty again when you come back from a result.

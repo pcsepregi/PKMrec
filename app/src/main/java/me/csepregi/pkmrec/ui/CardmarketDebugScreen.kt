@@ -33,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,10 +41,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import kotlinx.coroutines.launch
 import me.csepregi.pkmrec.BuildConfig
 import me.csepregi.pkmrec.cardmarket.Cardmarket
 import me.csepregi.pkmrec.cardmarket.CardmarketPrice
 import me.csepregi.pkmrec.cardmarket.CARDMARKET_EXTRACT_JS
+import me.csepregi.pkmrec.cardmarket.CardmarketFetcher
 import me.csepregi.pkmrec.cardmarket.CardmarketPage
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -65,6 +68,9 @@ fun CardmarketDebugScreen(onBack: () -> Unit) {
     var lastProductPage by remember { mutableStateOf<CardmarketPage?>(null) }
     val log = remember { mutableStateListOf<String>() }
     val start = remember { mutableStateOf(0L) }
+    val scope = rememberCoroutineScope()
+    var sealedRunning by remember { mutableStateOf(false) }
+    var sealedSample by remember { mutableStateOf<String?>(null) }
 
     fun note(line: String) {
         log += SimpleDateFormat("HH:mm:ss", Locale.ROOT).format(Date()) + " " + line
@@ -114,10 +120,20 @@ fun CardmarketDebugScreen(onBack: () -> Unit) {
                         onClick = { lastPage?.let { load(Cardmarket.filteredOffersUrl(it.url)) } },
                         enabled = lastPage?.url?.let(Cardmarket::isProductPage) == true,
                     ) { Text("Szűrt ajánlatok") }
+                    OutlinedButton(
+                        onClick = {
+                            sealedRunning = true
+                            scope.launch {
+                                sealedSample = runSealedProbe(context, ::note)
+                                sealedRunning = false
+                            }
+                        },
+                        enabled = !sealedRunning,
+                    ) { Text(if (sealedRunning) "Sealed próba fut…" else "Sealed próba") }
                 }
                 Button(
                     onClick = {
-                        val report = buildReport(log, lastProductPage)
+                        val report = buildReport(log, lastProductPage, sealedSample)
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                         clipboard.setPrimaryClip(ClipData.newPlainText("PKMrec Cardmarket report", report))
                         Toast.makeText(context, "Jelentés vágólapra másolva", Toast.LENGTH_SHORT).show()
@@ -186,12 +202,70 @@ fun CardmarketDebugScreen(onBack: () -> Unit) {
     }
 }
 
-private fun buildReport(log: List<String>, page: CardmarketPage?): String = buildString {
+/** Sealed products from the Cardmarket catalogue, for the probe: idProduct and name. */
+private val SEALED_PROBES = listOf(
+    784963 to "Surging Sparks Elite Trainer Box",
+    798940 to "Prismatic Evolutions: Umbreon Mini Tin",
+)
+
+/**
+ * Checks how sealed products can be priced: whether a product opens by its catalogue id,
+ * whether the name search finds it, and what its English offers look like. Writes to [note];
+ * returns the first offer row's HTML.
+ */
+private suspend fun runSealedProbe(context: Context, note: (String) -> Unit): String? {
+    var sample: String? = null
+    suspend fun open(url: String): CardmarketPage? = try {
+        val t = System.currentTimeMillis()
+        CardmarketFetcher.load(context, url).also {
+            note("  ${System.currentTimeMillis() - t} ms -> ${it.url} \"${it.title}\" idProduct=${it.idProduct} termék=\"${it.productName}\" sorok=${it.rowCount}")
+        }
+    } catch (e: Exception) {
+        note("  hiba: ${e.javaClass.simpleName} ${e.message}")
+        null
+    }
+    note("== Sealed próba")
+    for ((id, name) in SEALED_PROBES) {
+        note("Termék: $name ($id)")
+        for (url in Cardmarket.productIdUrlCandidates(id)) {
+            note(" azonosítóval: $url")
+            open(url)
+        }
+        note(" keresés: $name")
+        val search = open(Cardmarket.searchUrl(name)) ?: continue
+        val productUrl = if (Cardmarket.isSealedProductPage(search.url)) {
+            search.url
+        } else {
+            search.sealedLinks.take(10).forEach { note("  találat: ${it.label} -> ${it.href}") }
+            val link = search.sealedLinks.firstOrNull { it.label.equals(name, ignoreCase = true) } ?: search.sealedLinks.firstOrNull()
+            link?.let { Cardmarket.absolute(it.href) }
+        }
+        if (productUrl == null) {
+            note("  nincs sealed találat")
+            continue
+        }
+        note(" angol ajánlatok")
+        val page = open(Cardmarket.englishOffersUrl(productUrl)) ?: continue
+        page.rawOffers.take(12).forEach { note("  sor: $it") }
+        val estimate = CardmarketPrice.estimate(page.offers)
+        note("  ár: ${estimate.average?.let { CardmarketPrice.format(it) } ?: "nincs"} (számolható: ${estimate.eligible.size})")
+        if (sample == null) sample = page.sample
+    }
+    note("== Sealed próba vége")
+    return sample
+}
+
+private fun buildReport(log: List<String>, page: CardmarketPage?, sealedSample: String?): String = buildString {
     appendLine("PKMrec ${BuildConfig.VERSION_NAME} Cardmarket hibakeresés, ${Build.MANUFACTURER} ${Build.MODEL}, Android ${Build.VERSION.RELEASE}")
     appendLine()
     appendLine("== Napló")
     log.forEach { appendLine(it) }
     appendLine()
+    sealedSample?.let {
+        appendLine("== Sealed első sor HTML")
+        appendLine(it)
+        appendLine()
+    }
     if (page == null) {
         appendLine("Nem volt megnyitott termékoldal.")
         return@buildString

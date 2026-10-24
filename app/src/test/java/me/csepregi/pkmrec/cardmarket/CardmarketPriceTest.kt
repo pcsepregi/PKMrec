@@ -132,4 +132,22 @@ class CardmarketPriceTest {
         assertFalse(page.challenge)
         assertEquals(listOf("Lechonk (OBF 209) From 1,00 €"), page.productLinks.map { it.label })
     }
+
+    @Test
+    fun `sealed product pages are told apart from singles, categories and search`() {
+        assertTrue(Cardmarket.isSealedProductPage("/en/Pokemon/Products/Elite-Trainer-Boxes/Surging-Sparks-Elite-Trainer-Box"))
+        assertTrue(Cardmarket.isSealedProductPage("https://www.cardmarket.com/en/Pokemon/Products/Tins/Mega-Charizard-X-ex-Tin?language=1"))
+        assertFalse(Cardmarket.isSealedProductPage("/en/Pokemon/Products/Elite-Trainer-Boxes"))
+        assertFalse(Cardmarket.isSealedProductPage("/en/Pokemon/Products/Singles/Surging-Sparks/Pikachu-ex-V1-SSP057"))
+        assertFalse(Cardmarket.isSealedProductPage("/en/Pokemon/Products/Search?searchString=etb"))
+        assertFalse(Cardmarket.isSealedProductPage("/en/Pokemon"))
+    }
+
+    @Test
+    fun `sealed offers are filtered by language only`() {
+        assertEquals(
+            "https://www.cardmarket.com/en/Pokemon/Products/Tins/X-Tin?language=1",
+            Cardmarket.englishOffersUrl("/en/Pokemon/Products/Tins/X-Tin?language=3#tabs"),
+        )
+    }
 }

@@ -36,6 +36,26 @@ object Cardmarket {
     fun absolute(url: String): String = if (url.startsWith("/")) BASE_URL + url else url
 
     fun isProductPage(url: String): Boolean = url.contains("/Products/Singles/")
+
+    /** A sealed product page, e.g. /en/Pokemon/Products/Elite-Trainer-Boxes/Surging-Sparks-Elite-Trainer-Box. */
+    fun isSealedProductPage(url: String): Boolean {
+        val path = url.substringBefore('#').substringBefore('?').substringAfter("/Products/", "")
+        val parts = path.split('/').filter { it.isNotEmpty() }
+        return parts.size >= 2 && parts[0] != "Singles" && parts[0] != "Search"
+    }
+
+    /** The product page with only the English filter: sealed products have no condition. */
+    fun englishOffersUrl(productUrl: String): String {
+        val base = absolute(productUrl).substringBefore('#').substringBefore('?')
+        return "$base?language=$LANGUAGE_ENGLISH"
+    }
+
+    /** Guesses for opening a product by its catalogue id; the sealed probe reports which one works. */
+    fun productIdUrlCandidates(idProduct: Int): List<String> = listOf(
+        "$BASE_URL/en/Pokemon/Products?idProduct=$idProduct",
+        "$BASE_URL/en/Pokemon/Product?idProduct=$idProduct",
+        "$BASE_URL/en/Pokemon/Products/Search?idProduct=$idProduct",
+    )
 }
 
 /** One offer row read from a product page. Fields are null when the row could not be read. */
@@ -152,6 +172,10 @@ data class CardmarketPage(
     val productLinks: List<ProductLink>
         get() = links.filter { Cardmarket.isProductPage(it.href) && it.href.startsWith("/en/") }.distinctBy { it.href }
 
+    /** Sealed product links on a search page. */
+    val sealedLinks: List<ProductLink>
+        get() = links.filter { Cardmarket.isSealedProductPage(it.href) && it.href.startsWith("/en/") }.distinctBy { it.href }
+
     companion object {
         /** evaluateJavascript returns a JSON-encoded value: a quoted JSON string from the extractor. */
         fun fromScriptResult(result: String?): CardmarketPage? = runCatching {
@@ -231,8 +255,8 @@ const val CARDMARKET_EXTRACT_JS = """
     offers.push({ price: priceText, condition: cond, language: lang, reverse: reverse ? 'true' : 'false' });
   }
   var links = [];
-  var as = document.querySelectorAll('a[href*="/Products/Singles/"]');
-  for (var k = 0; k < as.length && links.length < 200; k++) {
+  var as = document.querySelectorAll('a[href*="/Products/"]');
+  for (var k = 0; k < as.length && links.length < 300; k++) {
     var label = txt(as[k]);
     if (label) links.push({ label: label, href: as[k].getAttribute('href') });
   }
