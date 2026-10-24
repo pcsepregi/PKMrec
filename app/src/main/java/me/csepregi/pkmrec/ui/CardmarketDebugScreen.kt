@@ -33,7 +33,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,86 +40,29 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import me.csepregi.pkmrec.BuildConfig
 import me.csepregi.pkmrec.cardmarket.Cardmarket
 import me.csepregi.pkmrec.cardmarket.CardmarketPrice
-import me.csepregi.pkmrec.cardmarket.PriceGuide
-import me.csepregi.pkmrec.cardmarket.ProbePage
-import okhttp3.OkHttpClient
-import okhttp3.Request
+import me.csepregi.pkmrec.cardmarket.CARDMARKET_EXTRACT_JS
+import me.csepregi.pkmrec.cardmarket.CardmarketPage
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.TimeUnit
 
 /**
- * Reads what a Cardmarket page shows: Cloudflare challenge, product id, offer rows (price,
- * condition, language) and product links. Selectors are guesses, so the first row's HTML is
- * returned too, to fix them from the report.
- */
-private const val EXTRACT_JS = """
-(function () {
-  function txt(e) { return e ? (e.innerText || e.textContent || '').trim() : ''; }
-  var langs = ['English','German','French','Italian','Spanish','Japanese','Portuguese','Korean','Chinese','S-Chinese','T-Chinese','Russian','Dutch','Polish'];
-  var conds = ['MT','NM','EX','GD','LP','PL','PO'];
-  var title = document.title || '';
-  var challenge = /just a moment|attention required|verify you are human/i.test(title) || !!document.querySelector('#challenge-form, #challenge-running, .cf-turnstile, #cf-challenge-running');
-  var html = document.documentElement.innerHTML;
-  var idm = html.match(/idProduct["'\s]*[:=]\s*["']?(\d+)/i);
-  var h1 = document.querySelector('h1');
-  var rows = document.querySelectorAll('.article-row, [id^="articleRow"]');
-  var offers = [];
-  for (var i = 0; i < rows.length && i < 60; i++) {
-    var r = rows[i];
-    var priceEl = r.querySelector('.col-offer .price-container, .price-container, .col-price');
-    var priceText = txt(priceEl);
-    if (!/€/.test(priceText)) { var m = txt(r).match(/\d[\d.]*,\d{2}\s*€/); priceText = m ? m[0] : ''; }
-    var cond = '';
-    var badges = r.querySelectorAll('.article-condition, .badge, [class*="condition"]');
-    for (var b = 0; b < badges.length && !cond; b++) { var t = txt(badges[b]).toUpperCase(); if (conds.indexOf(t) >= 0) cond = t; }
-    var lang = '';
-    var attrs = r.querySelectorAll('[aria-label], [title], [data-original-title], [data-bs-original-title]');
-    for (var a = 0; a < attrs.length && !lang; a++) {
-      var el = attrs[a];
-      var vals = [el.getAttribute('aria-label'), el.getAttribute('title'), el.getAttribute('data-original-title'), el.getAttribute('data-bs-original-title')];
-      for (var v = 0; v < vals.length && !lang; v++) { if (vals[v] && langs.indexOf(vals[v].trim()) >= 0) lang = vals[v].trim(); }
-    }
-    offers.push({ price: priceText, condition: cond, language: lang });
-  }
-  var links = [];
-  var as = document.querySelectorAll('a[href*="/Products/Singles/"]');
-  for (var k = 0; k < as.length && links.length < 25; k++) {
-    var label = txt(as[k]);
-    if (label) links.push(label + ' -> ' + as[k].getAttribute('href'));
-  }
-  var sample = rows.length ? rows[0].outerHTML : (document.body ? document.body.innerHTML : '');
-  return JSON.stringify({
-    url: location.href, title: title, challenge: challenge ? 'true' : 'false',
-    idProduct: idm ? parseInt(idm[1], 10) : null, productName: txt(h1),
-    rowCount: rows.length, offers: offers, links: links, sample: sample.substring(0, 2500)
-  });
-})();
-"""
-
-/**
- * Test screen for the Cardmarket price feature: opens Cardmarket in a WebView on the phone,
- * applies the English / Good-or-better filter, computes the price with Pali's rule and builds
- * a report to copy. Nothing is sent anywhere by the app.
+ * Debug screen for the Cardmarket price: opens Cardmarket in a visible WebView, applies the
+ * English / Good-or-better filter, computes the price with Pali's rule and builds a report to
+ * copy, to fix the page reading when Cardmarket changes. Nothing is sent anywhere by the app.
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun CardmarketProbeScreen(onBack: () -> Unit) {
+fun CardmarketDebugScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     var webView by remember { mutableStateOf<WebView?>(null) }
     var loading by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("Charizard ex") }
-    var lastPage by remember { mutableStateOf<ProbePage?>(null) }
-    var lastProductPage by remember { mutableStateOf<ProbePage?>(null) }
-    var guideRunning by remember { mutableStateOf(false) }
+    var lastPage by remember { mutableStateOf<CardmarketPage?>(null) }
+    var lastProductPage by remember { mutableStateOf<CardmarketPage?>(null) }
     val log = remember { mutableStateListOf<String>() }
     val start = remember { mutableStateOf(0L) }
 
@@ -146,7 +88,7 @@ fun CardmarketProbeScreen(onBack: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 TextButton(onClick = onBack) { Text("‹ Vissza") }
-                Text("Cardmarket próba", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("Cardmarket hibakeresés", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             }
             Column(
                 modifier = Modifier.padding(horizontal = 12.dp),
@@ -172,17 +114,6 @@ fun CardmarketProbeScreen(onBack: () -> Unit) {
                         onClick = { lastPage?.let { load(Cardmarket.filteredOffersUrl(it.url)) } },
                         enabled = lastPage?.url?.let(Cardmarket::isProductPage) == true,
                     ) { Text("Szűrt ajánlatok") }
-                    OutlinedButton(
-                        onClick = {
-                            val id = lastProductPage?.idProduct
-                            guideRunning = true
-                            scope.launch {
-                                note(withContext(Dispatchers.IO) { priceGuideCheck(id) })
-                                guideRunning = false
-                            }
-                        },
-                        enabled = !guideRunning,
-                    ) { Text(if (guideRunning) "Árlista…" else "Árlista teszt") }
                 }
                 Button(
                     onClick = {
@@ -224,8 +155,8 @@ fun CardmarketProbeScreen(onBack: () -> Unit) {
 
                             override fun onPageFinished(view: WebView, url: String?) {
                                 loading = false
-                                view.evaluateJavascript(EXTRACT_JS) { result ->
-                                    val page = ProbePage.fromScriptResult(result)
+                                view.evaluateJavascript(CARDMARKET_EXTRACT_JS) { result ->
+                                    val page = CardmarketPage.fromScriptResult(result)
                                     if (page == null) {
                                         note("Oldal betöltve, de nem olvasható: $url")
                                         return@evaluateJavascript
@@ -239,7 +170,7 @@ fun CardmarketProbeScreen(onBack: () -> Unit) {
                                     if (Cardmarket.isProductPage(page.url) && !page.challenge) {
                                         lastProductPage = page
                                     } else {
-                                        page.links.take(10).forEach { note("  találat: $it") }
+                                        page.productLinks.take(10).forEach { note("  találat: ${it.label} -> ${it.href}") }
                                     }
                                 }
                             }
@@ -255,22 +186,8 @@ fun CardmarketProbeScreen(onBack: () -> Unit) {
     }
 }
 
-/** Downloads the public price guide and looks up the product, to test the fallback price. */
-private fun priceGuideCheck(idProduct: Int?): String = runCatching {
-    val http = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(60, TimeUnit.SECONDS).build()
-    val started = System.currentTimeMillis()
-    http.newCall(Request.Builder().url(Cardmarket.PRICE_GUIDE_URL).build()).execute().use { response ->
-        val body = response.body?.string().orEmpty()
-        val ms = System.currentTimeMillis() - started
-        val head = "Árlista: HTTP ${response.code}, ${body.length / 1024} kB, $ms ms, termékek: ${PriceGuide.count(body)}"
-        if (idProduct == null) return@use "$head (nincs megnyitott termék)"
-        val entry = PriceGuide.find(body, idProduct)
-        "$head; idProduct=$idProduct: " + (entry?.fields?.entries?.joinToString(", ") { "${it.key}=${it.value}" } ?: "nincs benne")
-    }
-}.getOrElse { "Árlista hiba: ${it.javaClass.simpleName}: ${it.message}" }
-
-private fun buildReport(log: List<String>, page: ProbePage?): String = buildString {
-    appendLine("PKMrec ${BuildConfig.VERSION_NAME} Cardmarket próba, ${Build.MANUFACTURER} ${Build.MODEL}, Android ${Build.VERSION.RELEASE}")
+private fun buildReport(log: List<String>, page: CardmarketPage?): String = buildString {
+    appendLine("PKMrec ${BuildConfig.VERSION_NAME} Cardmarket hibakeresés, ${Build.MANUFACTURER} ${Build.MODEL}, Android ${Build.VERSION.RELEASE}")
     appendLine()
     appendLine("== Napló")
     log.forEach { appendLine(it) }
@@ -289,11 +206,11 @@ private fun buildReport(log: List<String>, page: ProbePage?): String = buildStri
     appendLine("Átlagolt árak: ${estimate.counted.joinToString { CardmarketPrice.format(it) }}")
     appendLine("Ár: ${estimate.average?.let { CardmarketPrice.format(it) } ?: "nincs"}")
     appendLine()
-    appendLine("== Sorok (ár | állapot | nyelv)")
+    appendLine("== Sorok (ár | állapot | nyelv | reverse)")
     page.rawOffers.forEach { appendLine(it) }
     appendLine()
     appendLine("== Termék linkek")
-    page.links.forEach { appendLine(it) }
+    page.productLinks.forEach { appendLine("${it.label} -> ${it.href}") }
     appendLine()
     appendLine("== Első sor HTML")
     appendLine(page.sample)

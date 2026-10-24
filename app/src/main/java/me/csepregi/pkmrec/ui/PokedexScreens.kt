@@ -270,6 +270,7 @@ private fun PokedexCard(card: TcgCard) {
                 card.rarity?.let { DetailRow(stringResource(R.string.pokedex_rarity), it) }
             }
         }
+        CardmarketPriceSection(card, reverseHolo = false)
         if (card.variants.isNotEmpty()) {
             Text(stringResource(R.string.pokedex_variants), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             card.variants.forEach { variant ->

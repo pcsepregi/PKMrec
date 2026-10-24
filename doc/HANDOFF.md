@@ -73,6 +73,10 @@ Home screen "Pokédex" button → `PokedexSearchScreen` (suggestions while typin
 
 Whole app uses one dark colour scheme (`ui/Theme.kt`, `Neon` colours); the scheme's background is transparent and `NeonBackground` (`ui/NeonDecor.kt`) is drawn once behind the NavHost, so screen transitions are switched off. Home screen follows Pali's mockup; icons from `material-icons-core`.
 
+## 0.11.0 – Cardmarket price (done)
+
+Pali's rule: English offers, Good or better, skip the 2 cheapest, average the next 5 (TCG Collector prices are not acceptable to him). The Cardmarket API is closed to new users and Cloudflare stops plain HTTP, so `cardmarket/CardmarketFetcher` loads pages in an invisible WebView on the phone and reads them with `CARDMARKET_EXTRACT_JS` (rows `.article-row`, condition badge, language from `aria-label`, reverse holo from an attribute "Reverse Holo" — the last one unverified). Product: name search (`/Products/Search?searchString=<name>&site=<n>`, Cardmarket ignores codes and numbers), then the result labelled "Name (CODE NUM)" with the card's set code and number (numbers compared without leading zeros; `CardmarketMatcher.CODE_ALIASES` for codes that differ). Offers: product URL + `?language=1&minCondition=4`. Product links are kept for good, prices for 24 h (`CardmarketPrices`). Settings → "Cardmarket hibakeresés" opens the visible debug screen with a copyable report (first row HTML) to fix selectors.
+
 ## Backlog
 
 See `CHANGELOG.md` under "Unreleased": tests with real anonymised page samples (needs pages saved from a logged-in browser), R8 shrinking.

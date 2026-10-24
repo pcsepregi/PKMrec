@@ -7,6 +7,16 @@ Release notes shown in the app's update dialog are taken from the matching secti
 - Tests with real, anonymised TCG Collector page samples (needs saved pages from a logged-in browser).
 - Enable R8 code shrinking for a smaller APK.
 
+## 0.11.0
+
+New: Cardmarket price on the card screens.
+- The recognition result and the Pokédex result show the card's Cardmarket price: English offers in Good or better condition, the 2 cheapest skipped, the average of the next 5. For a reverse holo variant only reverse holo offers count.
+- The price loads after the rest of the screen and is kept for 24 hours; "Frissítés" loads it again, "Megnyitás a Cardmarketen" opens the filtered offers in the browser.
+- With only 1–2 offers the cheapest price is shown as a guide; with fewer than 7 the note says how many there are.
+- If Cardmarket asks for a check, a button shows Cardmarket so the check can pass.
+- Settings: "Cardmarket ár mutatása" switch, and the test screen moved to the bottom as "Cardmarket hibakeresés".
+- Settings: "Lista megtekintése" shows the Pokémon name list, with a filter by name or number.
+
 ## 0.10.1
 
 Test build for the Cardmarket price.
