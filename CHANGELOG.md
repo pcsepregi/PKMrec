@@ -13,6 +13,7 @@ New: set symbol recognition, for older cards without a printed set code.
 - When the number fits cards from several sets (e.g. 25/73 is in both Shining Legends and Champion's Path), the set symbol printed next to the number is compared with the symbols of those sets. If one clearly matches, that card is chosen automatically ("Másik kártya" goes back to the list).
 - Otherwise the list shows each set's symbol and how well it matched the card.
 - The symbols of all English sets are built into the app.
+- Fix: other text in view (e.g. a web address or prices when a card is shown on a screen) is no longer taken for the card number. A number without a slash ("2573") is only read from the card's bottom strip, and that strip ends closer to the weakness line.
 - The camera's raw text report also shows the line positions and whether the symbol area was cut out, to help fix recognition problems.
 
 ## 0.9.0

@@ -41,7 +41,16 @@ class CardTextAnalyzer(
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
     private companion object {
-        val NUMBER_LIKE = Regex("""\w{1,5}\s*/\s*\w{2,5}""")
+        /**
+         * A card number such as "123/193", "TG05/TG30" or a misread "O15/128" or cut "SVI4/SV9": up to two
+         * letters, then digits (or letters OCR confuses with digits) on both sides of the slash, with at
+         * least two real digits.
+         * Not "com/cards" or "cards/38896" from a web address on a screen.
+         */
+        val NUMBER_LIKE = Regex("""(?<![\w/])[A-Za-z]{0,2}[0-9OoIlSB]{1,3}\s*/\s*[A-Za-z]{0,2}[0-9OoIlSB]{1,3}(?![\w/])""")
+
+        fun isNumberLike(text: String): Boolean =
+            NUMBER_LIKE.findAll(text).any { match -> match.value.count { it.isDigit() } >= 2 }
 
         /** The short "weakness / resistance / retreat" label line just above the number (OCR: "TEtrat", "weakness2"). */
         val WEAKNESS_LINE = Regex("""weak|resist|retreat|etreat|etrat""", RegexOption.IGNORE_CASE)
@@ -168,7 +177,7 @@ class CardTextAnalyzer(
 
     /** Around the number-like lines, widened to the left to catch a lost leading digit and the set code. */
     private fun numberRegion(lines: List<OcrLine>, width: Int, height: Int): Strip? {
-        val numbers = lines.filter { NUMBER_LIKE.containsMatchIn(it.text) }
+        val numbers = lines.filter { isNumberLike(it.text) }
         if (numbers.isEmpty()) return null
         val h = numbers.maxOf { it.height }.coerceAtLeast(10)
         val left = max(0, numbers.minOf { it.left } - 3 * h)
@@ -226,7 +235,7 @@ class CardTextAnalyzer(
 
     /** A number like "123/193" printed at least ~2.2 % of the frame height tall means the corner is shown up close. */
     private fun isCloseUp(lines: List<OcrLine>, height: Int): Boolean {
-        val numberHeight = lines.filter { NUMBER_LIKE.containsMatchIn(it.text) }.maxOfOrNull { it.height } ?: return false
+        val numberHeight = lines.filter { isNumberLike(it.text) }.maxOfOrNull { it.height } ?: return false
         return numberHeight >= height * 0.022f
     }
 
@@ -305,8 +314,11 @@ class CardTextAnalyzer(
         val top = lines.minOf { it.top }
         val weakness = lines.filter { it.text.length <= 30 && WEAKNESS_LINE.containsMatchIn(it.text) }.maxByOrNull { it.top }
         val (stripTop, stripBottom) = if (weakness != null && weakness.top - top >= height / 6) {
+            // The number is a few label heights below the weakness line; the text above may include
+            // more than the card (e.g. a web page on a screen), so it only limits the strip.
             val span = weakness.top - top
-            max(0, weakness.top) to min(height, weakness.bottom + (span * 0.28f).roundToInt())
+            val below = min((span * 0.28f).roundToInt(), 5 * weakness.height.coerceAtLeast(10))
+            max(0, weakness.top) to min(height, weakness.bottom + below)
         } else {
             val bottom = lines.maxOf { it.bottom }
             val span = bottom - top

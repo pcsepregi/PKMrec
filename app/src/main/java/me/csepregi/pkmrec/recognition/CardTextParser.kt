@@ -95,8 +95,12 @@ object CardTextParser {
     fun parseWithLine(lines: List<OcrLine>, imageHeight: Int, names: PokemonNameFinder? = null): ParsedCard? {
         val tokenized = lines.map { it to tokenize(it.text) }
         val candidates = tokenized.mapNotNull { (line, tokens) -> readNumber(line, tokens, tokenized)?.let { line to it } }
-            // Only when no number with a slash was read: a number whose slash OCR dropped ("2573" = 25/73).
-            .ifEmpty { tokenized.mapNotNull { (line, tokens) -> readNumberWithoutSlash(tokens)?.let { line to it } } }
+            // Only when no number with a slash was read, and only in the enlarged bottom strip (elsewhere
+            // any 4-digit text would do): a number whose slash OCR dropped ("2573" = 25/73).
+            .ifEmpty {
+                tokenized.filter { (line, _) -> line.fromStrip }
+                    .mapNotNull { (line, tokens) -> readNumberWithoutSlash(tokens)?.let { line to it } }
+            }
         if (candidates.isEmpty()) return null
 
         // Prefer readings from the lower part of the text area (the card's bottom strip), then those with a set code.
