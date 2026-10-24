@@ -85,6 +85,8 @@ fun PokedexSearchScreen(onBack: () -> Unit, onPick: (PokemonName) -> Unit) {
     val suggestions = remember(query, names) { NameMatcher.suggest(query, names) }
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
+    // Start with an empty field when coming back from the result screen.
+    val pick: (PokemonName) -> Unit = { query = ""; onPick(it) }
 
     Scaffold { padding ->
         Column(
@@ -103,7 +105,7 @@ fun PokedexSearchScreen(onBack: () -> Unit, onPick: (PokemonName) -> Unit) {
                 label = { Text(stringResource(R.string.pokedex_name_hint)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { suggestions.firstOrNull()?.let(onPick) }),
+                keyboardActions = KeyboardActions(onSearch = { suggestions.firstOrNull()?.let(pick) }),
                 modifier = Modifier.fillMaxWidth().focusRequester(focus),
             )
             when {
@@ -114,7 +116,7 @@ fun PokedexSearchScreen(onBack: () -> Unit, onPick: (PokemonName) -> Unit) {
                 )
                 suggestions.isEmpty() -> Text(stringResource(R.string.pokedex_no_match), style = MaterialTheme.typography.bodyMedium)
                 else -> suggestions.forEach { name ->
-                    Card(modifier = Modifier.fillMaxWidth().clickable { onPick(name) }) {
+                    Card(modifier = Modifier.fillMaxWidth().clickable { pick(name) }) {
                         Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(name.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                             Text(
