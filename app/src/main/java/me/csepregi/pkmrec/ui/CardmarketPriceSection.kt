@@ -210,7 +210,7 @@ private fun PriceLine(title: String, euros: Double, rate: HufRate) {
 /** Shows Cardmarket visibly so its Cloudflare check can pass; closes by itself once a normal page loads. */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun CardmarketCheckDialog(url: String, onDone: () -> Unit) {
+internal fun CardmarketCheckDialog(url: String, onDone: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDone,
         confirmButton = { TextButton(onClick = onDone) { Text(stringResource(R.string.cardmarket_check_done)) } },

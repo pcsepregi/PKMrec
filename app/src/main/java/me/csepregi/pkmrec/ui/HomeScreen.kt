@@ -45,17 +45,28 @@ import me.csepregi.pkmrec.R
 import me.csepregi.pkmrec.tcg.SessionState
 import me.csepregi.pkmrec.tcg.TcgSession
 
-/** Both feature buttons have the same height, whatever the length of their text. */
+/** All feature buttons have the same height, whatever the length of their text. */
 private val FEATURE_CARD_HEIGHT = 150.dp
 
-/** One entry on the home screen; [accent] is the colour the button's gradient fades into. */
-private data class Feature(val title: Int, val description: Int, val icon: Int, val accent: Color, val open: () -> Unit)
+/**
+ * One entry on the home screen; [accent] is the colour the button's gradient fades into.
+ * [needsLogin]: the feature reads TCG Collector, so a logged-out user is sent to the login first.
+ */
+private data class Feature(
+    val title: Int,
+    val description: Int,
+    val icon: Int,
+    val accent: Color,
+    val needsLogin: Boolean = true,
+    val open: () -> Unit,
+)
 
 @Composable
-fun HomeScreen(onOpenSettings: () -> Unit, onLogin: () -> Unit, onRecognize: () -> Unit, onPokedex: () -> Unit) {
+fun HomeScreen(onOpenSettings: () -> Unit, onLogin: () -> Unit, onRecognize: () -> Unit, onPokedex: () -> Unit, onSealed: () -> Unit) {
     val features = listOf(
-        Feature(R.string.feature_recognition, R.string.feature_recognition_desc, R.drawable.feature_scan, Neon.GlowSoft, onRecognize),
-        Feature(R.string.feature_pokedex, R.string.feature_pokedex_desc, R.drawable.feature_pokedex, Neon.Purple, onPokedex),
+        Feature(R.string.feature_recognition, R.string.feature_recognition_desc, R.drawable.feature_scan, Neon.GlowSoft, open = onRecognize),
+        Feature(R.string.feature_pokedex, R.string.feature_pokedex_desc, R.drawable.feature_pokedex, Neon.Purple, open = onPokedex),
+        Feature(R.string.feature_sealed, R.string.feature_sealed_desc, R.drawable.feature_sealed, Neon.GlowSoft, needsLogin = false, open = onSealed),
     )
     val session by TcgSession.state.collectAsState()
 
@@ -72,7 +83,7 @@ fun HomeScreen(onOpenSettings: () -> Unit, onLogin: () -> Unit, onRecognize: () 
             SessionStatus(state = session, onLogin = onLogin)
             Spacer(Modifier.height(4.dp))
             features.forEach { feature ->
-                FeatureButton(feature, onClick = { if (session is SessionState.LoggedOut) onLogin() else feature.open() })
+                FeatureButton(feature, onClick = { if (feature.needsLogin && session is SessionState.LoggedOut) onLogin() else feature.open() })
             }
         }
     }

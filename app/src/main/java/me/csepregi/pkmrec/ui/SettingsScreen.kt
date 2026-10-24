@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -48,6 +51,9 @@ import me.csepregi.pkmrec.diagnostics.ErrorLog
 import me.csepregi.pkmrec.diagnostics.SlowScanLog
 import me.csepregi.pkmrec.pokedex.NameListRefreshResult
 import me.csepregi.pkmrec.pokedex.PokemonNames
+import me.csepregi.pkmrec.sealed.SealedCatalog
+import me.csepregi.pkmrec.sealed.SealedInventory
+import me.csepregi.pkmrec.sealed.SealedListRefreshResult
 import me.csepregi.pkmrec.tcg.PokedexList
 import me.csepregi.pkmrec.tcg.SessionState
 import me.csepregi.pkmrec.tcg.TcgError
@@ -273,6 +279,12 @@ fun SettingsScreen(
 
             HorizontalDivider()
 
+            Section(title = stringResource(R.string.settings_sealed)) {
+                SealedSettings()
+            }
+
+            HorizontalDivider()
+
             Section(title = stringResource(R.string.settings_cardmarket)) {
                 var enabled by remember { mutableStateOf(CardmarketPrices.isEnabled(context)) }
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -295,6 +307,93 @@ fun SettingsScreen(
                 TextButton(onClick = onCardmarketDebug) { Text(stringResource(R.string.settings_cardmarket_debug)) }
             }
         }
+    }
+}
+
+/** Sealed catalog: product list refresh, export and import of Pali's own list. */
+@Composable
+private fun SealedSettings() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var count by remember { mutableIntStateOf(0) }
+    var refreshing by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var importText by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) { count = withContext(Dispatchers.IO) { SealedCatalog.all(context).size } }
+
+    val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            SealedInventory.load(context)
+            val ok = withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.openOutputStream(uri, "wt")!!.use { it.write(SealedInventory.exportJson().toByteArray()) }
+                }.isSuccess
+            }
+            Toast.makeText(context, if (ok) R.string.settings_sealed_exported else R.string.settings_sealed_export_failed, Toast.LENGTH_SHORT).show()
+        }
+    }
+    val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            importText = withContext(Dispatchers.IO) {
+                runCatching { context.contentResolver.openInputStream(uri)!!.use { it.readBytes().decodeToString() } }.getOrNull()
+            }
+        }
+    }
+
+    Text(
+        stringResource(R.string.settings_sealed_desc),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Text(stringResource(R.string.settings_sealed_count, count), style = MaterialTheme.typography.bodyLarge)
+    Button(
+        onClick = {
+            refreshing = true
+            error = null
+            scope.launch {
+                when (val result = SealedCatalog.refresh(context)) {
+                    is SealedListRefreshResult.Done -> {
+                        count = result.count
+                        Toast.makeText(context, context.getString(R.string.settings_sealed_refreshed, result.count), Toast.LENGTH_SHORT).show()
+                    }
+                    is SealedListRefreshResult.Error -> error = result.message
+                }
+                refreshing = false
+            }
+        },
+        enabled = !refreshing,
+        modifier = Modifier.fillMaxWidth(),
+    ) { Text(stringResource(if (refreshing) R.string.settings_names_refreshing else R.string.settings_sealed_refresh)) }
+    error?.let { Text(stringResource(R.string.settings_sealed_failed, it), color = MaterialTheme.colorScheme.error) }
+    OutlinedButton(
+        onClick = { exporter.launch("pkmrec-sealed-${java.time.LocalDate.now()}.json") },
+        modifier = Modifier.fillMaxWidth(),
+    ) { Text(stringResource(R.string.settings_sealed_export)) }
+    OutlinedButton(
+        onClick = { importer.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) },
+        modifier = Modifier.fillMaxWidth(),
+    ) { Text(stringResource(R.string.settings_sealed_import)) }
+
+    importText?.let { text ->
+        fun import(replace: Boolean) {
+            importText = null
+            scope.launch {
+                val message = runCatching { SealedInventory.importJson(context, text, replace) }.fold(
+                    { context.getString(R.string.settings_sealed_imported, it) },
+                    { context.getString(R.string.settings_sealed_import_failed, it.message ?: it.javaClass.simpleName) },
+                )
+                Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            }
+        }
+        AlertDialog(
+            onDismissRequest = { importText = null },
+            title = { Text(stringResource(R.string.settings_sealed_import_title)) },
+            text = { Text(stringResource(R.string.settings_sealed_import_text)) },
+            confirmButton = { TextButton(onClick = { import(replace = true) }) { Text(stringResource(R.string.settings_sealed_import_replace)) } },
+            dismissButton = { TextButton(onClick = { import(replace = false) }) { Text(stringResource(R.string.settings_sealed_import_merge)) } },
+        )
     }
 }
 

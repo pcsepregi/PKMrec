@@ -1,0 +1,47 @@
+name: Sealed products
+
+# Keeps the Sealed catalog product list (app/src/main/assets/sealed_products.tsv) up to date
+# from Cardmarket's free product catalogue. The app also downloads this file from GitHub when
+# "Sealed lista frissítése" is pressed in settings, so new products show up without a release.
+# Runs weekly, when the script changes, or manually.
+on:
+  schedule:
+    - cron: "41 4 * * 1"
+  push:
+    branches: [main]
+    paths: [.github/scripts/fetch-sealed-products.py, .github/workflows/sealed-products.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sealed-products
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download product list
+        run: python3 .github/scripts/fetch-sealed-products.py app/src/main/assets/sealed_products.tsv --min 2000
+
+      - name: Commit changes
+        run: |
+          git add app/src/main/assets/sealed_products.tsv
+          # The header line carries the catalogue date: only commit when a product changed.
+          if git diff --cached -U0 | grep -E '^[+-][0-9]' -q; then :; else echo "Product list unchanged."; git reset -q; exit 0; fi
+          git diff --cached --stat | tail -1
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Update sealed product list [skip ci]"
+          for attempt in 1 2 3; do
+            git pull --rebase --quiet origin main && git push origin HEAD:main && exit 0
+            sleep $((attempt * 10))
+          done
+          exit 1

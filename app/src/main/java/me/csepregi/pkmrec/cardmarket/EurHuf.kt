@@ -75,9 +75,12 @@ object EurHuf {
     }
 
     /** "2 949 Ft": whole forints, non-breaking spaces between thousands and before "Ft". */
-    fun formatHuf(euros: Double, rate: Double): String {
-        val forints = (euros * rate).roundToLong()
-        return forints.toString().reversed().chunked(3).joinToString("\u00A0").reversed() + "\u00A0Ft"
+    fun formatHuf(euros: Double, rate: Double): String = formatForints((euros * rate).roundToLong())
+
+    /** "12 345 Ft", "-1 200 Ft": whole forints with non-breaking spaces. */
+    fun formatForints(forints: Long): String {
+        val digits = kotlin.math.abs(forints).toString().reversed().chunked(3).joinToString("\u00A0").reversed()
+        return (if (forints < 0) "-" else "") + digits + "\u00A0Ft"
     }
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

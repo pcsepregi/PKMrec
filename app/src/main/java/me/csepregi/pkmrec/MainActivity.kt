@@ -29,6 +29,8 @@ import me.csepregi.pkmrec.ui.PkmrecTheme
 import me.csepregi.pkmrec.ui.PokedexResultScreen
 import me.csepregi.pkmrec.ui.PokedexSearchScreen
 import me.csepregi.pkmrec.ui.PokemonNamesScreen
+import me.csepregi.pkmrec.ui.SealedCatalogScreen
+import me.csepregi.pkmrec.ui.SealedItemScreen
 import me.csepregi.pkmrec.ui.SettingsScreen
 import me.csepregi.pkmrec.ui.UpdateDialog
 import me.csepregi.pkmrec.update.UpdateManager
@@ -63,7 +65,20 @@ class MainActivity : ComponentActivity() {
                                 onLogin = { nav.navigate(Routes.LOGIN) },
                                 onRecognize = { nav.navigate(Routes.CAMERA) },
                                 onPokedex = { nav.navigate(Routes.POKEDEX) },
+                                onSealed = { nav.navigate(Routes.SEALED) },
                             )
+                        }
+                        composable(Routes.SEALED) {
+                            SealedCatalogScreen(
+                                onBack = { nav.popBackStack() },
+                                onOpenItem = { nav.navigate(Routes.sealedItem(it)) },
+                            )
+                        }
+                        composable(
+                            Routes.SEALED_ITEM,
+                            arguments = listOf(navArgument("id") { type = NavType.IntType }),
+                        ) { entry ->
+                            SealedItemScreen(id = entry.arguments?.getInt("id") ?: 0, onBack = { nav.popBackStack() })
                         }
                         composable(Routes.POKEDEX) {
                             PokedexSearchScreen(
@@ -144,6 +159,10 @@ object Routes {
     const val POKEDEX_RESULT = "pokedex/{number}"
     const val CARDMARKET_DEBUG = "cardmarket-debug"
     const val POKEMON_NAMES = "pokemon-names"
+    const val SEALED = "sealed"
+    const val SEALED_ITEM = "sealed/{id}"
 
     fun pokedexResult(number: Int) = "pokedex/$number"
+
+    fun sealedItem(id: Int) = "sealed/$id"
 }
