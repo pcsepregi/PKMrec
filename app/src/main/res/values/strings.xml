@@ -249,6 +249,7 @@
     <string name="settings_sealed_refreshed">Sealed lista frissítve: %1$d termék</string>
     <string name="settings_sealed_failed">Nem sikerült frissíteni a sealed listát: %1$s</string>
     <string name="settings_sealed_export">Saját lista exportálása</string>
+    <string name="settings_sealed_export_excel">Excel export (csak megtekintésre)</string>
     <string name="settings_sealed_import">Saját lista importálása</string>
     <string name="settings_sealed_exported">Lista elmentve</string>
     <string name="settings_sealed_imported">%1$d termék importálva</string>

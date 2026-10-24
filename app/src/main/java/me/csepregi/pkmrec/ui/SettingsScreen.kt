@@ -47,6 +47,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.csepregi.pkmrec.cardmarket.CardmarketPrices
+import me.csepregi.pkmrec.cardmarket.EurHuf
 import me.csepregi.pkmrec.diagnostics.ErrorLog
 import me.csepregi.pkmrec.diagnostics.SlowScanLog
 import me.csepregi.pkmrec.pokedex.NameListRefreshResult
@@ -54,6 +55,7 @@ import me.csepregi.pkmrec.pokedex.PokemonNames
 import me.csepregi.pkmrec.sealed.SealedCatalog
 import me.csepregi.pkmrec.sealed.SealedInventory
 import me.csepregi.pkmrec.sealed.SealedListRefreshResult
+import me.csepregi.pkmrec.sealed.SealedXlsx
 import me.csepregi.pkmrec.tcg.PokedexList
 import me.csepregi.pkmrec.tcg.SessionState
 import me.csepregi.pkmrec.tcg.TcgError
@@ -333,6 +335,19 @@ private fun SealedSettings() {
             Toast.makeText(context, if (ok) R.string.settings_sealed_exported else R.string.settings_sealed_export_failed, Toast.LENGTH_SHORT).show()
         }
     }
+    val excelExporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(SealedXlsx.MIME)) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            SealedInventory.load(context)
+            val ok = withContext(Dispatchers.IO) {
+                runCatching {
+                    val bytes = SealedXlsx.build(SealedInventory.items.value, EurHuf.rate(context), EurHuf.rateDate(context))
+                    context.contentResolver.openOutputStream(uri, "wt")!!.use { it.write(bytes) }
+                }.isSuccess
+            }
+            Toast.makeText(context, if (ok) R.string.settings_sealed_exported else R.string.settings_sealed_export_failed, Toast.LENGTH_SHORT).show()
+        }
+    }
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
@@ -371,6 +386,10 @@ private fun SealedSettings() {
         onClick = { exporter.launch("pkmrec-sealed-${java.time.LocalDate.now()}.json") },
         modifier = Modifier.fillMaxWidth(),
     ) { Text(stringResource(R.string.settings_sealed_export)) }
+    OutlinedButton(
+        onClick = { excelExporter.launch("pkmrec-sealed-${java.time.LocalDate.now()}.xlsx") },
+        modifier = Modifier.fillMaxWidth(),
+    ) { Text(stringResource(R.string.settings_sealed_export_excel)) }
     OutlinedButton(
         onClick = { importer.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) },
         modifier = Modifier.fillMaxWidth(),

@@ -6,6 +6,10 @@ Release notes shown in the app's update dialog are taken from the matching secti
 
 - Enable R8 code shrinking for a smaller APK.
 
+## 1.2.0
+
+- Sealed catalog: new "Excel export" in Settings. It saves an .xlsx file with one row per product: count, purchase price per piece and in total, Cardmarket price per piece in euros and forints, total value, difference, price date and a Cardmarket link, plus a total row. The file is for viewing; the JSON export stays the backup that can be imported.
+
 ## 1.1.4
 
 Sealed catalog:
