@@ -16,6 +16,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import androidx.navigation.compose.rememberNavController
+import me.csepregi.pkmrec.cardmarket.EurHuf
 import me.csepregi.pkmrec.tcg.TcgSession
 import me.csepregi.pkmrec.ui.CameraScreen
 import me.csepregi.pkmrec.ui.CardmarketDebugScreen
@@ -120,6 +121,7 @@ class MainActivity : ComponentActivity() {
         }
         UpdateManager.checkOnStart(this)
         TcgSession.refresh(this)
+        EurHuf.refresh(this)
     }
 
     override fun onResume() {
