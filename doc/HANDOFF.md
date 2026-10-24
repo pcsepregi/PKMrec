@@ -33,7 +33,7 @@ Notes for continuing development in a new chat. Read together with `README.md`, 
 - From the Claude session: **git push to `main` works; pushing tags and GitHub API writes (tags, releases, secrets) are blocked**, which is why the release workflow creates tags itself. Workflow **logs cannot be read**; compiler errors and test failures are re-emitted as **annotations** by `.github/scripts/annotate-errors.sh`, readable with:
   `gh api repos/pcsepregi/PKMrec/check-runs/<job id>/annotations`
   (job id from `gh api repos/pcsepregi/PKMrec/actions/runs/<run id>/jobs`).
-- Commits: author `pcsepregi <pal@csepregi.me>`, plus the Co-Authored-By / Claude-Session trailers.
+- Commits: author `pcsepregi <197758010+pcsepregi@users.noreply.github.com>` (GitHub noreply address; Pali's account keeps its e-mail private and blocks pushes that expose it), plus the Co-Authored-By / Claude-Session trailers.
 - Signing: repository secrets `SIGNING_KEYSTORE_BASE64` and `SIGNING_PASSWORD` (key alias `pkmrec`). Pali keeps the keystore backup. Losing it means users must reinstall.
 - APK limited to `arm64-v8a`. Version code = `X*10000 + Y*100 + Z`.
 - Set symbols: `.github/scripts/fetch-set-symbols.py` downloads from pokemontcg.io (index API: 5 tries, waits 5/10/20/40 s) and merges into `app/src/main/assets/set_symbols/`, which is **committed to git**. A set it cannot download keeps its copy from git, so a pokemontcg.io outage no longer fails builds; releases need at least 100 symbols in the result. `set-symbols.yml` (weekly, manual, or when the script changes) refreshes the git copy and commits it with `[skip ci]`.

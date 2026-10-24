@@ -77,6 +77,8 @@ def main():
     if name:
         for form in {name, name.replace("&", "&amp;")}:
             html = html.replace(form, TEST_NAME)
+    # Chrome's "saved from url" comment (the URL can contain the user's list ID).
+    html = re.sub(r"<!-- saved from url=[^>]*-->\s*", "", html)
     html = re.sub(r'(id="navbar-button-user-avatar">)\s*[^<\s]+', r"\1 " + TEST_NAME[0], html)
     # Scripts with a src (bundles, Cloudflare beacon) and the Cloudflare challenge parameters.
     html = re.sub(r"<script\b[^>]*\bsrc=[^>]*>\s*</script>", "", html)
