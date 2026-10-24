@@ -123,7 +123,8 @@ class CardmarketPriceTest {
             """"offers":[{"price":"1,20 €","condition":"NM","language":"English","reverse":"true"},{"price":"","condition":"","language":"","reverse":"false"}],""" +
             """"links":[{"label":"Lechonk (OBF 209)\n\nFrom 1,00 €","href":"/en/Pokemon/Products/Singles/Obsidian-Flames/Lechonk-V2-OBF209"},""" +
             """{"label":"Deutsch","href":"/de/Pokemon/Products/Singles/Obsidian-Flames/Lechonk-V2-OBF209"},""" +
-            """{"label":"Lechonk (OBF 209)","href":"/en/Pokemon/Products/Singles/Obsidian-Flames/Lechonk-V2-OBF209"}],"sample":"<div>"}"""
+            """{"label":"Lechonk (OBF 209)","href":"/en/Pokemon/Products/Singles/Obsidian-Flames/Lechonk-V2-OBF209"}],"sample":"<div>",""" +
+            """"image":"https://product-images.s3.cardmarket.com/51/OBF/123/123.jpg"}"""
         val page = CardmarketPage.fromScriptResult(JsonPrimitive(inner).toString())!!
         assertEquals(123, page.idProduct)
         assertEquals(2, page.rowCount)
@@ -131,6 +132,7 @@ class CardmarketPriceTest {
         assertEquals(CardmarketOffer(null, null, null), page.offers[1])
         assertFalse(page.challenge)
         assertEquals(listOf("Lechonk (OBF 209) From 1,00 €"), page.productLinks.map { it.label })
+        assertEquals("https://product-images.s3.cardmarket.com/51/OBF/123/123.jpg", page.imageUrl)
     }
 
     @Test

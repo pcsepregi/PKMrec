@@ -44,6 +44,8 @@ data class SealedItem(
     /** The Cardmarket product page, once found. */
     val productUrl: String? = null,
     val price: SealedPrice? = null,
+    /** The product picture on Cardmarket, saved with the price. */
+    val imageUrl: String? = null,
 )
 
 @Serializable
@@ -116,8 +118,8 @@ object SealedInventory {
 
     suspend fun setPurchase(context: Context, id: Int, unitHuf: Long?) = update(context, id) { it.copy(purchaseHuf = unitHuf) }
 
-    suspend fun setPrice(context: Context, id: Int, price: SealedPrice?, productUrl: String?) =
-        update(context, id) { it.copy(price = price, productUrl = productUrl) }
+    suspend fun setPrice(context: Context, id: Int, price: SealedPrice?, productUrl: String?, imageUrl: String? = null) =
+        update(context, id) { it.copy(price = price, productUrl = productUrl, imageUrl = imageUrl ?: it.imageUrl) }
 
     suspend fun remove(context: Context, id: Int) = change(context) { items -> items.filter { it.id != id } }
 
@@ -188,6 +190,7 @@ object SealedInventory {
                 count = old.count + item.count,
                 purchaseHuf = weightedAverage(old.count, old.purchaseHuf, item.count, item.purchaseHuf),
                 productUrl = old.productUrl ?: item.productUrl,
+                imageUrl = old.imageUrl ?: item.imageUrl,
                 price = listOfNotNull(old.price, item.price).maxByOrNull { it.time },
             )
         }

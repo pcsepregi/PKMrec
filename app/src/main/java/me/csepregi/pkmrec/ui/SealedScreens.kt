@@ -9,7 +9,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -37,12 +40,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -77,6 +83,7 @@ fun SealedCatalogScreen(onBack: () -> Unit, onOpenItem: (Int) -> Unit) {
     var query by rememberSaveable { mutableStateOf("") }
     var byValue by rememberSaveable { mutableStateOf(false) }
     var adding by remember { mutableStateOf<SealedProduct?>(null) }
+    var checkUrl by remember { mutableStateOf<String?>(null) }
     val suggestions = remember(query, products) { SealedMatcher.suggest(query, products) }
     val summary = remember(items, rate) { SealedInventory.summary(items, rate) }
     val scope = rememberCoroutineScope()
@@ -128,7 +135,14 @@ fun SealedCatalogScreen(onBack: () -> Unit, onOpenItem: (Int) -> Unit) {
                     enabled = items.any { it.count > 0 },
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text(stringResource(R.string.sealed_refresh_all)) }
-                if (p != null && p.failed > 0) Hint(stringResource(R.string.sealed_refresh_failed, p.failed))
+                if (p?.challengeUrl != null) {
+                    Text(stringResource(R.string.sealed_refresh_challenge, p.done, p.total), style = MaterialTheme.typography.bodyMedium)
+                    OutlinedButton(onClick = { checkUrl = p.challengeUrl }, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.cardmarket_challenge_open))
+                    }
+                } else if (p != null && p.failed > 0) {
+                    Hint(stringResource(R.string.sealed_refresh_failed, p.failed))
+                }
             }
 
             OutlinedTextField(
@@ -171,6 +185,13 @@ fun SealedCatalogScreen(onBack: () -> Unit, onOpenItem: (Int) -> Unit) {
         }
     }
 
+    checkUrl?.let { url ->
+        CardmarketCheckDialog(url = url, onDone = {
+            checkUrl = null
+            SealedPrices.refreshAll(context, resume = true)
+        })
+    }
+
     adding?.let { product ->
         PurchaseDialog(
             title = product.name,
@@ -189,6 +210,15 @@ fun SealedCatalogScreen(onBack: () -> Unit, onOpenItem: (Int) -> Unit) {
 private fun OwnedRow(item: SealedItem, onClick: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (item.imageUrl != null) {
+                AsyncImage(
+                    model = item.imageUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.size(56.dp).clip(RoundedCornerShape(8.dp)),
+                )
+                Spacer(Modifier.width(12.dp))
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Text(item.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text(
@@ -253,6 +283,16 @@ fun SealedItemScreen(id: Int, onBack: () -> Unit) {
                 return@Column
             }
             Text(item.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            if (item.imageUrl != null) {
+                AsyncImage(
+                    model = item.imageUrl,
+                    contentDescription = item.name,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxWidth().height(240.dp).clip(RoundedCornerShape(12.dp)),
+                )
+            } else {
+                Hint(stringResource(R.string.sealed_image_later))
+            }
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),

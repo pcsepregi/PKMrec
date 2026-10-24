@@ -203,6 +203,8 @@
     <string name="sealed_refresh_all">Árak frissítése</string>
     <string name="sealed_refreshing">Árak frissítése: %1$d / %2$d</string>
     <string name="sealed_refresh_cancel">Megszakítás</string>
+    <string name="sealed_refresh_challenge">A Cardmarket ellenőrzést kér (%1$d / %2$d után megállt). Nyisd meg, pipáld ki, és utána onnan folytatódik.</string>
+    <string name="sealed_image_later">A kép az első árlekéréskor töltődik le.</string>
     <string name="sealed_refresh_failed">%1$d terméknél nem sikerült új árat lekérni, ezeknél a régi ár maradt.</string>
     <string name="sealed_add_hint">Termék hozzáadása (pl. pitch black etb)</string>
     <string name="sealed_no_match">Nincs ilyen termék a Cardmarket listában.</string>

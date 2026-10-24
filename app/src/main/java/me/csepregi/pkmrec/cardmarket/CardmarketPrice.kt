@@ -163,6 +163,8 @@ data class CardmarketPage(
     val rawOffers: List<String>,
     val links: List<ProductLink>,
     val sample: String,
+    /** The product picture (a product-images link, else og:image), if the page has one. */
+    val imageUrl: String? = null,
 ) {
     /** Product links on a search page, without duplicates and language switch links. */
     val productLinks: List<ProductLink>
@@ -204,6 +206,7 @@ data class CardmarketPage(
                     ProductLink(link.text("label").orEmpty().replace(Regex("""\s+"""), " ").trim(), href)
                 },
                 sample = str("sample").orEmpty(),
+                imageUrl = str("image")?.takeIf { it.startsWith("https://") },
             )
         }.getOrNull()
 
@@ -256,11 +259,22 @@ const val CARDMARKET_EXTRACT_JS = """
     var label = txt(as[k]);
     if (label) links.push({ label: label, href: as[k].getAttribute('href') });
   }
+  var image = '';
+  var imgs = document.querySelectorAll('img');
+  for (var q = 0; q < imgs.length && !image; q++) {
+    var src = imgs[q].getAttribute('src') || imgs[q].getAttribute('data-echo') || '';
+    if (/product-images/.test(src)) image = src;
+  }
+  if (!image) {
+    var og = document.querySelector('meta[property="og:image"]');
+    if (og) image = og.getAttribute('content') || '';
+  }
+  if (image && image.indexOf('//') === 0) image = 'https:' + image;
   var sample = rows.length ? rows[0].outerHTML : (document.body ? document.body.innerHTML : '');
   return JSON.stringify({
     url: location.href, title: title, challenge: challenge ? 'true' : 'false',
     idProduct: idm ? parseInt(idm[1], 10) : null, productName: txt(h1),
-    rowCount: rows.length, offers: offers, links: links, sample: sample.substring(0, 2500)
+    rowCount: rows.length, offers: offers, links: links, sample: sample.substring(0, 2500), image: image
   });
 })();
 """
