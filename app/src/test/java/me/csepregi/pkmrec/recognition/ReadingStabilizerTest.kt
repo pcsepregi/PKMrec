@@ -49,6 +49,15 @@ class ReadingStabilizerTest {
     }
 
     @Test
+    fun `unpadded numbers are confirmed without waiting for a set code`() {
+        val old = CardReading(null, "25", "73")
+        val s = ReadingStabilizer()
+        assertNull(s.offer(old))
+        assertNull(s.offer(old))
+        assertNull(s.offer(old)!!.setCode)
+    }
+
+    @Test
     fun `the majority number wins and old votes age out`() {
         val s = ReadingStabilizer(window = 6)
         repeat(3) { s.offer(obf) }

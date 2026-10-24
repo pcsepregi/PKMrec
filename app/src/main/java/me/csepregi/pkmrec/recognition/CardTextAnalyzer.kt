@@ -27,8 +27,12 @@ import kotlin.math.roundToInt
  *    corner is shown up close, the first pass is enough.
  *
  * Reports the reading of each frame (or null) and the lines used. Results are delivered on the main thread.
+ *
+ * [loadNames] gives the Pokémon names used to tell the card name from attack and ability names;
+ * it is called once, on the analysis thread.
  */
 class CardTextAnalyzer(
+    private val loadNames: () -> List<String> = { emptyList() },
     private val onFrame: (reading: CardReading?, lines: List<OcrLine>) -> Unit,
 ) : ImageAnalysis.Analyzer, Closeable {
 
@@ -36,7 +40,12 @@ class CardTextAnalyzer(
 
     private companion object {
         val NUMBER_LIKE = Regex("""\w{1,5}\s*/\s*\w{2,5}""")
+
+        /** The short "weakness / resistance / retreat" label line just above the number (OCR: "TEtrat", "weakness2"). */
+        val WEAKNESS_LINE = Regex("""weak|resist|retreat|etreat|etrat""", RegexOption.IGNORE_CASE)
     }
+
+    @Volatile private var names: PokemonNameFinder? = null
 
     @Volatile var paused = false
 
@@ -55,6 +64,10 @@ class CardTextAnalyzer(
             return
         }
         busy = true
+        if (names == null) {
+            names = PokemonNameFinder(runCatching { loadNames() }.getOrDefault(emptyList()))
+        }
+        val nameFinder = names
         val rotation = image.imageInfo.rotationDegrees
         val sideways = rotation == 90 || rotation == 270
         val width = if (sideways) image.height else image.width
@@ -69,7 +82,7 @@ class CardTextAnalyzer(
                     return@addOnCompleteListener
                 }
                 val fullLines = task.result.toLines()
-                val quick = CardTextParser.parse(fullLines, height)
+                val quick = CardTextParser.parse(fullLines, height, nameFinder)
 
                 // Pass 2 region: the bottom strip when the whole card is in view; otherwise, when no valid
                 // number came out (e.g. white outlined digits on a dark full-art card), the area around
@@ -123,7 +136,7 @@ class CardTextAnalyzer(
                         val inv = if (second.isSuccessful) linesOf(second.result) else emptyList()
                         // All readings take part; the parser prefers complete lines with a set code.
                         val merged = fullLines + plain + inv
-                        deliver(CardTextParser.parse(merged, height) ?: quick, merged)
+                        deliver(CardTextParser.parse(merged, height, nameFinder) ?: quick, merged)
                     }
                 }
             }
@@ -203,17 +216,27 @@ class CardTextAnalyzer(
 
     private class Crop(val bitmap: Bitmap, val scale: Float)
 
-    /** The bottom ~16 % of the card's text area, where set code and number are printed. */
+    /**
+     * The card's bottom strip, where set code and number are printed: below the weakness / retreat line
+     * when that was read, otherwise the bottom ~16 % of the text area. The weakness line keeps the strip
+     * on the card when there is other text below it (e.g. a price under a card shown on a screen).
+     */
     private fun bottomStrip(lines: List<OcrLine>, width: Int, height: Int): Strip? {
         if (lines.size < 3) return null
         val top = lines.minOf { it.top }
-        val bottom = lines.maxOf { it.bottom }
-        val span = bottom - top
-        if (span < height / 5) return null // not a whole card in view
-        val stripTop = max(0, bottom - (span * 0.16f).roundToInt())
-        val stripBottom = min(height, bottom + (span * 0.04f).roundToInt())
-        val left = max(0, lines.minOf { it.left } - width / 40)
-        val right = min(width, lines.maxOf { it.right } + width / 40)
+        val weakness = lines.filter { it.text.length <= 30 && WEAKNESS_LINE.containsMatchIn(it.text) }.maxByOrNull { it.top }
+        val (stripTop, stripBottom) = if (weakness != null && weakness.top - top >= height / 6) {
+            val span = weakness.top - top
+            max(0, weakness.top) to min(height, weakness.bottom + (span * 0.28f).roundToInt())
+        } else {
+            val bottom = lines.maxOf { it.bottom }
+            val span = bottom - top
+            if (span < height / 5) return null // not a whole card in view
+            max(0, bottom - (span * 0.16f).roundToInt()) to min(height, bottom + (span * 0.04f).roundToInt())
+        }
+        val onCard = lines.filter { it.top <= stripBottom }
+        val left = max(0, onCard.minOf { it.left } - width / 40)
+        val right = min(width, onCard.maxOf { it.right } + width / 40)
         if (right - left < 50 || stripBottom - stripTop < 20) return null
         return Strip(left, stripTop, right, stripBottom)
     }

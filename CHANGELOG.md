@@ -6,6 +6,16 @@ Release notes shown in the app's update dialog are taken from the matching secti
 
 - Tests with real, anonymised TCG Collector page samples (needs saved pages from a logged-in browser).
 - Enable R8 code shrinking for a smaller APK.
+- Set symbol recognition: show set symbols in the candidate picker, then pick the card by its symbol automatically.
+
+## 0.9.0
+
+Faster and more reliable card recognition, mostly for older cards (before Scarlet & Violet) that have no set code.
+- The enlarged second reading looks at the card's own bottom strip (below the weakness / retreat line), not at text below the card.
+- The set symbol in front of the number no longer spoils it when it is read as a letter or digit (e.g. "F0109/172" → 109/172).
+- A number whose slash was not read ("2573") is understood as 25/73 when only one reading makes sense.
+- The card name must be a Pokémon's name (from the built-in name list), so attack and ability names ("Blessings of the Deep", "Cablegram") are no longer taken as the name. Trainer cards keep working as before.
+- Older cards are confirmed sooner: numbers like 25/73 are confirmed without waiting for a set code, and other cards without one after 4 readings instead of 6.
 
 ## 0.8.0
 

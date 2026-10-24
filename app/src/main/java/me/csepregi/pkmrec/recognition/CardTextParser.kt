@@ -73,9 +73,24 @@ object CardTextParser {
     private val NAME_LEADING_JUNK = Regex("""^(BASIC|STAGE\s*[12]?|STAGE[12])\s+""", RegexOption.IGNORE_CASE)
     private val NOT_NAMES = Regex("""^(BASIC|STAGE\s*\d?|EVOLVES\b.*|TRAINER|ITEM|SUPPORTER|STADIUM|POKÉMON TOOL|ENERGY|TERA)$""", RegexOption.IGNORE_CASE)
 
-    fun parse(lines: List<OcrLine>, imageHeight: Int): CardReading? {
+    /** Lines that only trainer and energy cards print; their names are not Pokémon names. */
+    private val NOT_POKEMON_CARD = Regex("""^(TRAINER|ITEM|SUPPORTER|STADIUM|POKÉMON TOOL|(SPECIAL\s+)?ENERGY)\b""", RegexOption.IGNORE_CASE)
+
+    /** A year such as "2017" from the copyright line, not a number with a lost slash. */
+    private val YEAR = Regex("""^(19|20)\d\d$""")
+
+    /** Totals of English sets stay well below this; a larger one means the slash was put in the wrong place. */
+    private const val MAX_TOTAL = 300
+
+    /**
+     * @param names when given, the name of a Pokémon card must contain a Pokémon's name; otherwise
+     *   the name is left empty rather than taking an attack or ability name.
+     */
+    fun parse(lines: List<OcrLine>, imageHeight: Int, names: PokemonNameFinder? = null): CardReading? {
         val tokenized = lines.map { it to tokenize(it.text) }
         val candidates = tokenized.mapNotNull { (line, tokens) -> readNumber(line, tokens, tokenized)?.let { line to it } }
+            // Only when no number with a slash was read: a number whose slash OCR dropped ("2573" = 25/73).
+            .ifEmpty { tokenized.mapNotNull { (line, tokens) -> readNumberWithoutSlash(tokens)?.let { line to it } } }
         if (candidates.isEmpty()) return null
 
         // Prefer readings from the lower part of the text area (the card's bottom strip), then those with a set code.
@@ -85,7 +100,7 @@ object CardTextParser {
         val (_, reading) = candidates.maxBy { (line, r) ->
             (if (line.top > middle) 2 else 0) + (if (r.setCode != null) 1 else 0)
         }
-        return reading.copy(name = findName(lines))
+        return reading.copy(name = findName(lines, names))
     }
 
     /** Uppercases, removes separator noise, joins "123 / 193" and splits glued "PALEN" into "PAL EN". */
@@ -110,9 +125,11 @@ object CardTextParser {
         for ((index, token) in tokens.withIndex()) {
             val slash = token.indexOf('/')
             if (slash <= 0 || slash == token.length - 1) continue
-            val number = normalizeNumberPart(token.substring(0, slash)) ?: continue
             val total = normalizeNumberPart(token.substring(slash + 1)) ?: continue
             if (total.count { it.isDigit() } < 2) continue
+            val number = normalizeNumberPart(token.substring(0, slash))
+                ?: numberAfterSymbol(token.substring(0, slash))
+                ?: continue
             val code = codeBeforeEn(tokens.subList(0, index))
                 ?: codeBeforeEn(tokens.subList(index + 1, tokens.size))
                 ?: nearestCodeBeforeEn(line, allLines)
@@ -162,6 +179,39 @@ object CardTextParser {
         return (prefix ?: "") + digits
     }
 
+    /**
+     * The set symbol printed right before the number is often read as one or two characters glued
+     * to it: "A25", "1109", "F0109" (regulation mark and symbol). Drops them when the rest is a number.
+     */
+    internal fun numberAfterSymbol(raw: String): String? {
+        for (drop in 1..2) {
+            if (raw.length - drop < 1) return null
+            val number = normalizeNumberPart(raw.drop(drop)) ?: continue
+            if (number.all { it.isDigit() }) return number
+        }
+        return null
+    }
+
+    /**
+     * A line that is just a 4–6 digit number, e.g. "2573" for 25/73 (OCR lost the slash).
+     * Taken only when exactly one split gives a plausible number and total.
+     */
+    private fun readNumberWithoutSlash(tokens: List<String>): CardReading? {
+        val digits = tokens.filter { token -> token.any { it.isDigit() } }
+        if (digits.size != 1 || tokens.any { it.length > 2 && it != digits[0] }) return null
+        val text = digits[0]
+        if (text.length !in 4..6 || !text.all { it.isDigit() } || YEAR.matches(text)) return null
+        val splits = (1..3).mapNotNull { at ->
+            val number = text.take(at)
+            val total = text.drop(at)
+            val totalValue = total.toInt()
+            val plausible = total.length in 2..3 && !total.startsWith("0") && totalValue <= MAX_TOTAL &&
+                number.toInt() in 1..totalValue * 2
+            if (plausible) CardReading(null, number, total) else null
+        }
+        return splits.singleOrNull()
+    }
+
     /** "14V132" → "141/132" (the V swallowed "1/"); "123V193" → "123/193" (the V is just the slash). */
     internal fun fixSlashReadAsV(token: String): String {
         val match = SLASH_AS_V.matchEntire(token) ?: return token
@@ -201,11 +251,13 @@ object CardTextParser {
     }
 
     /** The card name is the tallest mostly-letters line in the top part of the card's text area. */
-    internal fun findName(lines: List<OcrLine>): String? {
+    internal fun findName(lines: List<OcrLine>, names: PokemonNameFinder? = null): String? {
         if (lines.isEmpty()) return null
         val top = lines.minOf { it.top }
         val bottom = lines.maxOf { it.bottom }
         val limit = top + (bottom - top) * 0.25
+        val pokemonCard = lines.none { NOT_POKEMON_CARD.containsMatchIn(it.text.trim()) }
+        val mustBePokemon = names != null && !names.isEmpty && pokemonCard
         return lines.asSequence()
             .filter { it.top <= limit }
             .map { it to cleanName(it.text) }
@@ -214,6 +266,7 @@ object CardTextParser {
                     // Names are short; long sentences are ability or attack text (full-art cards).
                     text.length <= 28 && text.split(' ').size <= 4 && !text.startsWith("ability", ignoreCase = true)
             }
+            .filter { (_, text) -> !mustBePokemon || names?.containsPokemonName(text) == true }
             .maxByOrNull { (line, _) -> line.height }
             ?.second
     }
