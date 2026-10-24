@@ -8,5 +8,3 @@ captures/
 .kotlin/
 *.jks
 *.keystore
-# Downloaded by the build (.github/scripts/fetch-set-symbols.py)
-app/src/main/assets/set_symbols/

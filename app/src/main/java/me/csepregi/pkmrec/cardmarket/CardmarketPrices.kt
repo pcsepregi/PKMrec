@@ -27,6 +27,9 @@ sealed interface CardmarketResult {
 
     data class Failed(val kind: Kind, val detail: String) : CardmarketResult
 
+    /** Loading failed, but an older price ([Price], [FewOffers] or [NoOffers]) from [savedAt] is known. */
+    data class Stale(val previous: CardmarketResult, val savedAt: Long, val failure: Failed) : CardmarketResult
+
     enum class Kind { NO_INTERNET, TIMEOUT, SITE_CHANGED, OTHER }
 }
 
@@ -63,19 +66,44 @@ object CardmarketPrices {
 
     /** A cached price that is still fresh, without loading anything. */
     fun cached(context: Context, card: TcgCard, reverseHolo: Boolean): CardmarketResult? {
-        val raw = prefs(context).getString(priceKey(card, reverseHolo), null) ?: return null
-        val cached = runCatching { json.decodeFromString(CachedPrice.serializer(), raw) }.getOrNull() ?: return null
-        if (System.currentTimeMillis() - cached.time > PRICE_TTL_MS) return null
-        return when (cached.kind) {
+        val (result, time) = decodeCached(prefs(context).getString(priceKey(card, reverseHolo), null)) ?: return null
+        return result.takeIf { System.currentTimeMillis() - time <= PRICE_TTL_MS }
+    }
+
+    /** A stored price and the time it was saved, however old; null if [raw] is missing or unreadable. */
+    internal fun decodeCached(raw: String?): Pair<CardmarketResult, Long>? {
+        val cached = runCatching { json.decodeFromString(CachedPrice.serializer(), raw ?: return null) }.getOrNull() ?: return null
+        val result = when (cached.kind) {
             "price" -> CardmarketResult.Price(cached.value, cached.counted, cached.eligible, cached.productUrl)
             "few" -> CardmarketResult.FewOffers(cached.value, cached.eligible, cached.productUrl)
             "none" -> CardmarketResult.NoOffers(cached.productUrl)
-            else -> null
+            else -> return null
         }
+        return result to cached.time
+    }
+
+    /**
+     * Forgets the card's remembered Cardmarket product and prices, so the next [price] call
+     * searches for the product again (e.g. after a wrong match).
+     */
+    fun forgetProduct(context: Context, card: TcgCard) {
+        prefs(context).edit()
+            .remove(productKey(card))
+            .remove(priceKey(card, false))
+            .remove(priceKey(card, true))
+            .apply()
     }
 
     suspend fun price(context: Context, card: TcgCard, reverseHolo: Boolean, force: Boolean = false): CardmarketResult {
         if (!force) cached(context, card, reverseHolo)?.let { return it }
+        val result = load(context, card, reverseHolo)
+        if (result !is CardmarketResult.Failed) return result
+        // Rather an older price with its date than only an error.
+        val (previous, savedAt) = decodeCached(prefs(context).getString(priceKey(card, reverseHolo), null)) ?: return result
+        return CardmarketResult.Stale(previous, savedAt, result)
+    }
+
+    private suspend fun load(context: Context, card: TcgCard, reverseHolo: Boolean): CardmarketResult {
         return try {
             val productUrl = productUrl(context, card) ?: return CardmarketResult.NotFound(Cardmarket.searchUrl(card.name))
             val page = CardmarketFetcher.load(context, Cardmarket.filteredOffersUrl(productUrl))
@@ -109,7 +137,7 @@ object CardmarketPrices {
 
     /** The card's Cardmarket product page: remembered, or found through the name search. */
     private suspend fun productUrl(context: Context, card: TcgCard): String? {
-        val key = "product:${card.id}"
+        val key = productKey(card)
         prefs(context).getString(key, null)?.let { return it }
         val code = card.expansionCode ?: return null
         for (n in 1..MAX_SEARCH_PAGES) {
@@ -156,6 +184,8 @@ object CardmarketPrices {
     }
 
     private fun describe(card: TcgCard) = "${card.name} ${card.expansionCode} ${card.number}"
+
+    private fun productKey(card: TcgCard) = "product:${card.id}"
 
     private fun priceKey(card: TcgCard, reverseHolo: Boolean) = "price:${card.id}:" + if (reverseHolo) "r" else "n"
 

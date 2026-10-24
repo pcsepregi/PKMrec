@@ -7,6 +7,15 @@ Release notes shown in the app's update dialog are taken from the matching secti
 - Tests with real, anonymised TCG Collector page samples (needs saved pages from a logged-in browser).
 - Enable R8 code shrinking for a smaller APK.
 
+## 0.12.1
+
+Improvements:
+- Cardmarket price: if the price cannot be loaded (no internet, Cardmarket slow), the last known price is shown with its date instead of only an error.
+- Cardmarket price: new "Újrakeresés" button searches for the card on Cardmarket again, in case it was matched to the wrong product.
+- The forint price shows the date of the exchange rate when it is more than a week old.
+- Builds no longer fail when pokemontcg.io (set symbols) is down: a copy of the symbols is kept in the repository.
+- README and developer notes updated.
+
 ## 0.12.0
 
 New: debug mode for slow recognitions.
