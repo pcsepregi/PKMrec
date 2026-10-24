@@ -319,7 +319,7 @@ fun SealedItemScreen(id: Int, onBack: () -> Unit) {
                     Row {
                         TextButton(onClick = { loadPrice(item) }, enabled = !loadingPrice) { Text(stringResource(R.string.cardmarket_refresh)) }
                         TextButton(onClick = {
-                            open(item.productUrl?.let { Cardmarket.englishOffersUrl(it) } ?: Cardmarket.searchUrl(item.name))
+                            open(item.productUrl?.let { Cardmarket.englishOffersUrl(it) } ?: Cardmarket.productByIdUrl(item.id))
                         }) { Text(stringResource(R.string.cardmarket_open)) }
                     }
                     if (item.productUrl != null) {

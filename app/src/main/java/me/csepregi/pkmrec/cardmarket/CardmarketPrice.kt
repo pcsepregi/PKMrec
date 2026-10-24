@@ -50,12 +50,8 @@ object Cardmarket {
         return "$base?language=$LANGUAGE_ENGLISH"
     }
 
-    /** Guesses for opening a product by its catalogue id; the sealed probe reports which one works. */
-    fun productIdUrlCandidates(idProduct: Int): List<String> = listOf(
-        "$BASE_URL/en/Pokemon/Products?idProduct=$idProduct",
-        "$BASE_URL/en/Pokemon/Product?idProduct=$idProduct",
-        "$BASE_URL/en/Pokemon/Products/Search?idProduct=$idProduct",
-    )
+    /** Opens a product by its catalogue id: Cardmarket redirects to the product page (checked on 1.0.2). */
+    fun productByIdUrl(idProduct: Int): String = "$BASE_URL/en/Pokemon/Products?idProduct=$idProduct"
 }
 
 /** One offer row read from a product page. Fields are null when the row could not be read. */

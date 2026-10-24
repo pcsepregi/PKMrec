@@ -96,7 +96,7 @@ class SealedTest {
     fun `search results are picked by name or by link slug`() {
         val links = listOf(
             ProductLink("Pitch Black 10 Elite Trainer Box Case", "/en/Pokemon/Products/Elite-Trainer-Boxes/Pitch-Black-10-Elite-Trainer-Box-Case"),
-            ProductLink("Pitch Black Elite Trainer Box", "/en/Pokemon/Products/Elite-Trainer-Boxes/Pitch-Black-Elite-Trainer-Box"),
+            ProductLink("Pitch Black Elite Trainer Box From 95,00 €", "/en/Pokemon/Products/Elite-Trainer-Boxes/Pitch-Black-Elite-Trainer-Box"),
         )
         assertEquals(links[1], SealedPrices.pick(links, "Pitch Black Elite Trainer Box"))
         val unlabeled = links.map { it.copy(label = "") }

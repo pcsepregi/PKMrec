@@ -93,21 +93,27 @@ object SealedPrices {
         CardmarketResult.Failed(CardmarketResult.Kind.OTHER, e.message ?: e.javaClass.simpleName)
     }
 
-    /** Searches the product by name and picks the result with the same name (or the same id, when the page shows it). */
+    /**
+     * Opens the product by its catalogue id (Cardmarket redirects to the product page); if that
+     * does not land on the product, searches by name and picks the result with the same name.
+     */
     private suspend fun findProduct(context: Context, item: SealedItem): String? {
+        val direct = CardmarketFetcher.load(context, Cardmarket.productByIdUrl(item.id))
+        if (Cardmarket.isSealedProductPage(direct.url) && isSameProduct(direct, item)) return clean(direct.url)
         val page = CardmarketFetcher.load(context, Cardmarket.searchUrl(item.name))
-        if (Cardmarket.isSealedProductPage(page.url)) {
-            return page.url.substringBefore('#').substringBefore('?').takeIf { isSameProduct(page, item) }
-        }
-        return pick(page.sealedLinks, item.name)?.let { Cardmarket.absolute(it.href).substringBefore('?') }
+        if (Cardmarket.isSealedProductPage(page.url)) return clean(page.url).takeIf { isSameProduct(page, item) }
+        return pick(page.sealedLinks, item.name)?.let { clean(Cardmarket.absolute(it.href)) }
     }
 
-    private fun isSameProduct(page: CardmarketPage, item: SealedItem): Boolean =
-        page.idProduct?.let { it == item.id } ?: (page.productName?.let { sameName(it, item.name) } ?: false)
+    private fun clean(url: String) = url.substringBefore('#').substringBefore('?')
 
-    /** The search result whose label or link is the product's name. */
+    /** The page's product id when it shows one, else its title (the h1 also holds the category on a second line). */
+    private fun isSameProduct(page: CardmarketPage, item: SealedItem): Boolean =
+        page.idProduct?.let { it == item.id } ?: (page.productName?.lineSequence()?.firstOrNull()?.let { sameName(it, item.name) } ?: false)
+
+    /** The search result whose label ("Surging Sparks Elite Trainer Box From 95,00 €") or link is the product's name. */
     internal fun pick(links: List<ProductLink>, name: String): ProductLink? =
-        links.firstOrNull { sameName(it.label, name) } ?: links.firstOrNull { slugOf(it.href) == slug(name) }
+        links.firstOrNull { sameName(it.label.substringBefore(" From "), name) } ?: links.firstOrNull { slugOf(it.href) == slug(name) }
 
     internal fun sameName(a: String, b: String): Boolean = SealedMatcher.words(a) == SealedMatcher.words(b)
 

@@ -6,6 +6,17 @@ Release notes shown in the app's update dialog are taken from the matching secti
 
 - Enable R8 code shrinking for a smaller APK.
 
+## 1.1.0
+
+New: Sealed catalog, your sealed Pokémon products (ETB, booster bundle, box, tin, blister...).
+- New "Sealed catalog" button on the home screen. It works without a TCG Collector login.
+- Add products by typing their name: the app suggests products from Cardmarket's English sealed list (about 4000 products). Word order does not matter, "etb" means Elite Trainer Box, and small typos are fine.
+- Each product has a count and an average purchase price per piece in forints. When you add more pieces with a price, the average is updated.
+- Cardmarket price by your rule: English offers, skip the 2 cheapest, average the next 5. "Árak frissítése" loads the price of every product, one after the other.
+- Totals at the top: pieces, purchase total, current value in euros and forints, and the difference.
+- Your list from 24 October (82 pieces) is loaded on the first start.
+- Settings: refresh the product list, export and import your own list as a file.
+
 ## 1.0.2
 
 Test build for the upcoming Sealed catalog (1.1.0):

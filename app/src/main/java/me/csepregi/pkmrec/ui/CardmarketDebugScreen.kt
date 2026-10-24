@@ -227,10 +227,9 @@ private suspend fun runSealedProbe(context: Context, note: (String) -> Unit): St
     note("== Sealed próba")
     for ((id, name) in SEALED_PROBES) {
         note("Termék: $name ($id)")
-        for (url in Cardmarket.productIdUrlCandidates(id)) {
-            note(" azonosítóval: $url")
-            open(url)
-        }
+        val url = Cardmarket.productByIdUrl(id)
+        note(" azonosítóval: $url")
+        open(url)
         note(" keresés: $name")
         val search = open(Cardmarket.searchUrl(name)) ?: continue
         val productUrl = if (Cardmarket.isSealedProductPage(search.url)) {
