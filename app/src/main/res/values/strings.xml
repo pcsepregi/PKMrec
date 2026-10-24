@@ -105,6 +105,10 @@
     <string name="pokedex_rarity">Ritkaság</string>
     <string name="pokedex_variants">Változatok a gyűjteményedben</string>
     <string name="pokedex_owned_count">✓ %1$d db</string>
+    <string name="pokedex_rare_title">Legújabb full art / double rare lapok</string>
+    <string name="pokedex_rare_loading">Keresem a TCG Collectoron…</string>
+    <string name="pokedex_rare_none">Ennek a Pokémonnak nincs full art vagy double rare lapja.</string>
+    <string name="pokedex_rare_error">Nem sikerült betölteni a ritka lapokat. %1$s</string>
 
     <!-- Settings -->
     <string name="back">Vissza</string>

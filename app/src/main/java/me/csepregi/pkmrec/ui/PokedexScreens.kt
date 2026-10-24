@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -68,8 +69,10 @@ import me.csepregi.pkmrec.R
 import me.csepregi.pkmrec.pokedex.NameMatcher
 import me.csepregi.pkmrec.pokedex.PokemonName
 import me.csepregi.pkmrec.pokedex.PokemonNames
+import me.csepregi.pkmrec.tcg.LatestRareCards
 import me.csepregi.pkmrec.tcg.PokedexList
 import me.csepregi.pkmrec.tcg.PokedexLookupResult
+import me.csepregi.pkmrec.tcg.RareCardsResult
 import me.csepregi.pkmrec.tcg.TcgCard
 import me.csepregi.pkmrec.tcg.TcgError
 import me.csepregi.pkmrec.tcg.TcgErrorKind
@@ -140,7 +143,19 @@ sealed interface PokedexResultState {
     data class Loaded(val cards: List<TcgCard>) : PokedexResultState
 }
 
+/** "Legújabb full art / double rare lapok" under a common, uncommon or rare list card. */
+sealed interface RareCardsState {
+    data object Hidden : RareCardsState
+    data object Loading : RareCardsState
+    data object NotLoggedIn : RareCardsState
+    data class Error(val error: TcgError) : RareCardsState
+    data class Loaded(val cards: List<TcgCard>) : RareCardsState
+}
+
 class PokedexResultViewModel(app: Application) : AndroidViewModel(app) {
+
+    private val _rare = MutableStateFlow<RareCardsState>(RareCardsState.Hidden)
+    val rare: StateFlow<RareCardsState> = _rare.asStateFlow()
 
     private val _state = MutableStateFlow<PokedexResultState>(PokedexResultState.Loading)
     val state: StateFlow<PokedexResultState> = _state.asStateFlow()
@@ -161,6 +176,7 @@ class PokedexResultViewModel(app: Application) : AndroidViewModel(app) {
     private fun load() {
         val n = number ?: return
         _state.value = PokedexResultState.Loading
+        _rare.value = RareCardsState.Hidden
         viewModelScope.launch {
             val pokemon = withContext(Dispatchers.IO) { PokemonNames.byNumber(getApplication(), n) }
             _pokemon.value = pokemon
@@ -174,6 +190,24 @@ class PokedexResultViewModel(app: Application) : AndroidViewModel(app) {
                 is PokedexLookupResult.Found -> PokedexResultState.Loaded(result.perPokemon.flatMap { it.cards })
                 PokedexLookupResult.NotAPokemon -> PokedexResultState.Loaded(emptyList())
             }
+            val loaded = _state.value as? PokedexResultState.Loaded ?: return@launch
+            if (LatestRareCards.shouldShow(loaded.cards)) loadRare(pokemon.number, pokemon.slug)
+        }
+    }
+
+    fun retryRare() {
+        val pokemon = _pokemon.value ?: return
+        loadRare(pokemon.number, pokemon.slug)
+    }
+
+    private fun loadRare(number: Int, slug: String) {
+        _rare.value = RareCardsState.Loading
+        viewModelScope.launch {
+            _rare.value = when (val result = LatestRareCards.lookup(getApplication(), number, slug)) {
+                is RareCardsResult.Found -> RareCardsState.Loaded(result.cards)
+                RareCardsResult.NotLoggedIn -> RareCardsState.NotLoggedIn
+                is RareCardsResult.Error -> RareCardsState.Error(result.error)
+            }
         }
     }
 }
@@ -184,6 +218,7 @@ fun PokedexResultScreen(number: Int, onBack: () -> Unit, onLogin: () -> Unit) {
     val vm: PokedexResultViewModel = viewModel()
     val state by vm.state.collectAsState()
     val pokemon by vm.pokemon.collectAsState()
+    val rare by vm.rare.collectAsState()
     LaunchedEffect(number) { vm.start(number) }
 
     Scaffold { padding ->
@@ -232,7 +267,64 @@ fun PokedexResultScreen(number: Int, onBack: () -> Unit, onLogin: () -> Unit) {
                         if (index > 0) HorizontalDivider()
                         PokedexCard(card)
                     }
+                    RareCardsSection(rare, onRetry = { vm.retryRare() }, onLogin = onLogin)
                     Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.pokedex_new_search)) }
+                }
+            }
+        }
+    }
+}
+
+/** The Pokémon's newest full art / double rare cards, each marked owned or not. */
+@Composable
+private fun RareCardsSection(state: RareCardsState, onRetry: () -> Unit, onLogin: () -> Unit) {
+    if (state == RareCardsState.Hidden) return
+    val context = LocalContext.current
+    HorizontalDivider()
+    Text(stringResource(R.string.pokedex_rare_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+    when (state) {
+        RareCardsState.Hidden -> Unit
+        RareCardsState.Loading -> Row(verticalAlignment = Alignment.CenterVertically) {
+            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+            Spacer(Modifier.width(10.dp))
+            Text(stringResource(R.string.pokedex_rare_loading))
+        }
+        RareCardsState.NotLoggedIn -> Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.lookup_pokedex_not_logged_in), modifier = Modifier.weight(1f))
+            TextButton(onClick = onLogin) { Text(stringResource(R.string.login)) }
+        }
+        is RareCardsState.Error -> Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.pokedex_rare_error, tcgErrorText(state.error)), modifier = Modifier.weight(1f))
+            TextButton(onClick = onRetry) { Text(stringResource(R.string.retry)) }
+        }
+        is RareCardsState.Loaded -> {
+            if (state.cards.isEmpty()) Text(stringResource(R.string.pokedex_rare_none))
+            state.cards.forEach { card ->
+                val owned = card.variants.any { it.isOwned }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(card.url))) }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CardImage(card, width = 72)
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(card.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                        Text(card.expansionName, style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            numberAndRarity(card),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Text(
+                        text = if (owned) "✓" else "✗",
+                        color = if (owned) VerdictColors.Owned else VerdictColors.NotOwned,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
                 }
             }
         }

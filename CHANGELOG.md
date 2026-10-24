@@ -6,6 +6,10 @@ Release notes shown in the app's update dialog are taken from the matching secti
 
 - Enable R8 code shrinking for a smaller APK.
 
+## 1.4.0
+
+- Pokédex: when the card in your Pokedex list is Common, Uncommon or Rare, a new "Legújabb full art / double rare lapok" section under it shows the Pokémon's 5 newest full art and double rare cards from TCG Collector (Double Rare, Ultra Rare, Illustration Rare, Special Illustration Rare, Hyper Rare, and the older full arts, V, VMAX, VSTAR, GX, EX, Secret, Rainbow and Shiny cards), each with picture, set, number, rarity and a ✓ when you own it. Tap a card to open it on TCG Collector.
+
 ## 1.3.0
 
 - Recognition result: new "Hozzáadás a kollekcióhoz" button adds one copy of the shown variant to your TCG Collector collection, in English and in your account's default condition. After adding, the count on the screen updates and "Visszavonás" undoes it for 6 seconds. The app reloads the card before and after every change and only says it is done when TCG Collector shows the new count. This is the first feature that changes your collection: please try it first on a cheap card.
