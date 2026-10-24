@@ -158,6 +158,76 @@ class CardTextParserTest {
         assertNull(parse(line("Fuecoco ex", 60), line("Singe", 500)))
     }
 
+    private val names = PokemonNameFinder(listOf("Manaphy", "Qwilfish", "Garchomp", "Dracovish", "Arboliva", "Mr. Mime", "Mew"))
+
+    @Test
+    fun `symbol read as characters glued to the number is dropped`() {
+        assertEquals("109/172", parse(line("F 1109/172", 950))!!.display)
+        assertEquals("109/172", parse(line("F0109/172", 950))!!.display)
+        assertEquals("25/73", parse(line("A25/73", 950))!!.display)
+        assertEquals("109", CardTextParser.numberAfterSymbol("@109"))
+        assertNull(CardTextParser.numberAfterSymbol("AB"))
+    }
+
+    @Test
+    fun `number with a lost slash is read only when nothing better is there`() {
+        // Real OCR report: Manaphy SLG 25/73, whole card shown on a screen.
+        val r = parse(
+            line("Blessings of the Deeg", 242, h = 96),
+            line("Ability", 244, h = 47),
+            line("3 Wave Splash", 605),
+            line("weakness2", 878),
+            line("2573", 1016),
+            line("\$0.36", 1255),
+            line("1+", 1420),
+        )!!
+        assertEquals("25/73", r.display)
+        assertEquals("123/193", parse(line("2573", 900), line("123/193", 950))!!.display)
+        // Years and ambiguous splits are not numbers.
+        assertNull(parse(line("2017", 950)))
+        assertNull(parse(line("1231", 950)))
+        assertNull(parse(line("0909", 950)))
+    }
+
+    @Test
+    fun `with the name list, attack and ability names are not taken as the card name`() {
+        val manaphy = listOf(
+            line("Blessings of the Deeg", 242, h = 96),
+            line("Ability", 244, h = 47),
+            line("Once during your turn", 321),
+            line("2573", 1016),
+        )
+        assertNull(CardTextParser.parse(manaphy, height, names)!!.name)
+        // Without the list the old rule (tallest line at the top) is kept.
+        assertEquals("Blessings of the Deeg", CardTextParser.parse(manaphy, height)!!.name)
+
+        val dracovish = listOf(
+            line("DracovishV", 60, h = 60),
+            line("Slosh 'n' Crash 60+", 120, h = 70),
+            line("E 114/172", 950),
+        )
+        assertEquals("DracovishV", CardTextParser.parse(dracovish, height, names)!!.name)
+    }
+
+    @Test
+    fun `trainer cards keep their name without the name list`() {
+        val r = CardTextParser.parse(
+            listOf(line("TRAINER", 30, h = 15), line("Professor's Research", 60, h = 50), line("147/202", 950)),
+            height,
+            names,
+        )!!
+        assertEquals("Professor's Research", r.name)
+    }
+
+    @Test
+    fun `name finder matches multi-word names and tolerates one OCR error in long names`() {
+        assertEquals(true, names.containsPokemonName("Mr. Mime"))
+        assertEquals(true, names.containsPokemonName("ArbolivaK ex"))
+        assertEquals(true, names.containsPokemonName("Mew"))
+        assertEquals(false, names.containsPokemonName("Mow"))
+        assertEquals(false, names.containsPokemonName("Cablegram"))
+    }
+
     @Test
     fun `key ignores the name`() {
         val a = CardReading("PAL", "123", "193", name = "A")

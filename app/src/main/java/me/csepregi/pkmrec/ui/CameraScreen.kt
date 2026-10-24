@@ -78,6 +78,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import me.csepregi.pkmrec.BuildConfig
 import me.csepregi.pkmrec.R
 import me.csepregi.pkmrec.diagnostics.ErrorLog
+import me.csepregi.pkmrec.pokedex.PokemonNames
 import me.csepregi.pkmrec.recognition.CardReading
 import me.csepregi.pkmrec.recognition.CardTextAnalyzer
 import me.csepregi.pkmrec.recognition.OcrLine
@@ -146,7 +147,7 @@ private fun ScannerContent(onBack: () -> Unit, onRecognized: (CardReading) -> Un
     var rawLines by remember { mutableStateOf<List<OcrLine>>(emptyList()) }
 
     val analyzer = remember {
-        CardTextAnalyzer { reading, lines ->
+        CardTextAnalyzer(loadNames = { PokemonNames.all(context).map { it.name } }) { reading, lines ->
             if (confirmed != null) return@CardTextAnalyzer
             rawLines = lines
             val stable = stabilizer.offer(reading)

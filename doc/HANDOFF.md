@@ -57,6 +57,8 @@ Notes for continuing development in a new chat. Read together with `README.md`, 
 - Voting across ~15 frames per field; a number needs ≥3 votes and at least twice the votes of any other number.
 - Parser fixes found from real cards: set code glued to "EN" (`PALEN`), set code in a separate text block, separator noise, names relative to the card (not the frame) and not long ability text, numbers next to a set code must be zero-padded (`41/132` is a truncated `141/132`), italic outlined `1/` read as `V` (`14V132` → `141/132`), light-on-dark digits on full-art cards.
 - Older cards without set code: number + total + name; same name in two sets (e.g. Buzzwole-GX 57/111 in 30C and CIN) → candidate picker.
+- 0.9.0 (from Pali's OCR reports, cards shown on a monitor): the bottom strip is anchored on the weakness/retreat line (text below the card pulled it off the card); the set symbol is read as glued characters ("F0109/172", "A A SVI4/SV9"); slash-less numbers ("2573"); ability/attack names taken as the card name → names must match the bundled Pokémon list (`PokemonNameFinder`) unless trainer/energy markers are present; two-digit totals (25/73) confirm without waiting for a code.
+- Same number/total in two sets with no name visible (corner close-up), e.g. 25/73 in Shining Legends and Champion's Path: only the set symbol can decide. Plan for symbol matching: https://claude.ai/artifact/PmkY27ARaqY949M5D5cfvY
 
 ## 0.6.0 – stability (done)
 

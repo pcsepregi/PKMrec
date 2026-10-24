@@ -8,7 +8,8 @@ package me.csepregi.pkmrec.recognition
  *   and at least twice as many as any other number (one misread digit cannot win).
  * - The set code is then the code most often read together with that number, if it got
  *   [codeVotes] votes; if that number was read [noCodeAfter] times without any code
- *   reaching that, the card is taken to have no set code (older cards).
+ *   reaching that, the card is taken to have no set code (older cards). A two-digit set total
+ *   ("25/73") only appears on older cards, so then no code is waited for.
  * - Frames without any reading also enter the window, so old votes age out when the
  *   card is moved away.
  */
@@ -16,7 +17,7 @@ class ReadingStabilizer(
     private val window: Int = 15,
     private val numberVotes: Int = 3,
     private val codeVotes: Int = 2,
-    private val noCodeAfter: Int = 6,
+    private val noCodeAfter: Int = 4,
 ) {
     private val recent = ArrayDeque<CardReading?>()
 
@@ -43,7 +44,8 @@ class ReadingStabilizer(
         // 2) set code read together with that number
         val codes = sameNumber.mapNotNull { it.setCode }.groupingBy { it }.eachCount()
         val bestCode = codes.maxByOrNull { it.value }
-        val codeDecided = (bestCode != null && bestCode.value >= codeVotes) || sameNumber.size >= noCodeAfter
+        val codeDecided = (bestCode != null && bestCode.value >= codeVotes) || sameNumber.size >= noCodeAfter ||
+            hasShortTotal(numberKey.second)
         val setCode = bestCode?.takeIf { it.value >= codeVotes }?.key ?: bestCode?.key
 
         // 3) regulation mark and name: most frequent values
@@ -62,6 +64,10 @@ class ReadingStabilizer(
             null
         }
     }
+
+    /** "25/73": sets with a printed set code (Scarlet & Violet on) always print three-digit totals. */
+    private fun hasShortTotal(total: String?): Boolean =
+        total != null && total.length < 3 && total.all { it.isDigit() }
 
     fun reset() {
         recent.clear()
