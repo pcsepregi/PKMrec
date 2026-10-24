@@ -1,4 +1,4 @@
-# PKMrec – handoff notes (state on 2026-10-24, v0.12.1)
+# PKMrec – handoff notes (state on 2026-10-24, v1.0.0)
 
 Notes for continuing development in a new chat. Read together with `README.md`, `doc/PLAN.md` and `CHANGELOG.md`.
 
@@ -94,6 +94,10 @@ From a review of security and error handling (no serious issues found: the app n
 - Set symbols kept in git with download fallback (see "Build and release").
 - Cardmarket: when loading fails but an older price is stored, the card screen shows that price with its date and the error (`CardmarketResult.Stale`). "Újrakeresés" forgets the remembered product link and prices of the card and searches again (useful after an app update that fixes matching).
 - The forint price shows the ECB rate's date when it is more than 7 days old.
+
+## 1.0.0 – first full version (done)
+
+Pali declared the app feature-complete for v1 on 2026-10-24. No functional changes over 0.12.1; adds `tcg/RealPagesTest` with real, anonymised TCG Collector pages (see "Repository").
 
 ## Backlog
 

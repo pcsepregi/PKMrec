@@ -1,6 +1,6 @@
 # PKMrec – Project plan
 
-This document is the full plan for the first version (v1) of PKMrec. It is written in English; the app's user interface is in Hungarian.
+This document is the full plan for the first version (v1) of PKMrec. **v1.0.0 was released on 2026-10-24**: every milestone below is done; features added along the way are listed in `CHANGELOG.md` and `doc/HANDOFF.md`. It is written in English; the app's user interface is in Hungarian.
 
 ## 1. Goal
 
@@ -234,5 +234,5 @@ Each milestone ends with a release APK the owner can install and try.
 
 - More home-screen features (e.g. scan history, batch scanning, adding a card to the collection or a list).
 - Automatic variant detection (holo / reverse holo) from the image.
-- Set-symbol recognition for older cards without a printed set code.
+- Set-symbol recognition for older cards (before Sun & Moon) whose symbol is not next to the number. (Done for newer layouts in 0.10.0.)
 - Other languages / TCG regions.

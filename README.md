@@ -11,7 +11,7 @@ The app's user interface is in **Hungarian**. All code, comments and documentati
 
 ## Status
 
-Version 0.12.1. Milestones 1–5 of the original plan are done, plus several features added since. See [`CHANGELOG.md`](CHANGELOG.md) for every release and [`doc/PLAN.md`](doc/PLAN.md) for the original plan.
+Version 1.0.0: all milestones of the original plan are done, plus several features added since (Pokédex search, Cardmarket price, set symbol matching, debug mode). See [`CHANGELOG.md`](CHANGELOG.md) for every release and [`doc/PLAN.md`](doc/PLAN.md) for the original plan.
 
 ## Features
 
