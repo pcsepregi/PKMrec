@@ -6,6 +6,12 @@ Release notes shown in the app's update dialog are taken from the matching secti
 
 - Enable R8 code shrinking for a smaller APK.
 
+## 1.1.4
+
+Sealed catalog:
+- Sorting by "Érték" now uses the price of one piece, not the price times the count.
+- A filter field next to the sorting chips narrows the list to the products whose name, set or type match.
+
 ## 1.1.3
 
 - Sealed catalog: "Árak frissítése" waits 8 seconds between Cardmarket pages (was 4), so the Cloudflare check comes even less often. A full refresh takes longer.

@@ -89,6 +89,7 @@ fun SealedCatalogScreen(onBack: () -> Unit, onOpenItem: (Int) -> Unit) {
     val rate = remember { EurHuf.rate(context) }
     var query by rememberSaveable { mutableStateOf("") }
     var byValue by rememberSaveable { mutableStateOf(false) }
+    var filter by rememberSaveable { mutableStateOf("") }
     var adding by remember { mutableStateOf<SealedProduct?>(null) }
     var checkUrl by remember { mutableStateOf<String?>(null) }
     val suggestions = remember(query, products) { SealedMatcher.suggest(query, products) }
@@ -177,16 +178,24 @@ fun SealedCatalogScreen(onBack: () -> Unit, onOpenItem: (Int) -> Unit) {
                 }
             } else {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.sealed_sort), style = MaterialTheme.typography.bodyMedium)
                     FilterChip(selected = !byValue, onClick = { byValue = false }, label = { Text(stringResource(R.string.sealed_sort_name)) })
                     FilterChip(selected = byValue, onClick = { byValue = true }, label = { Text(stringResource(R.string.sealed_sort_value)) })
+                    OutlinedTextField(
+                        value = filter,
+                        onValueChange = { filter = it },
+                        placeholder = { Text(stringResource(R.string.sealed_filter)) },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
+                // By value: the price of one piece, so a single expensive box comes before many cheap packs.
                 val sorted = if (byValue) {
-                    items.sortedByDescending { (it.price?.value ?: 0.0) * it.count }
+                    items.sortedByDescending { it.price?.value ?: -1.0 }
                 } else {
                     items.sortedBy { it.name.lowercase() }
-                }
-                if (sorted.isEmpty()) Text(stringResource(R.string.sealed_empty), style = MaterialTheme.typography.bodyMedium)
+                }.filter { SealedMatcher.matches(filter, "${it.name} ${it.set} ${it.type}") }
+                if (sorted.isEmpty() && items.isNotEmpty()) Text(stringResource(R.string.sealed_filter_none), style = MaterialTheme.typography.bodyMedium)
+                if (items.isEmpty()) Text(stringResource(R.string.sealed_empty), style = MaterialTheme.typography.bodyMedium)
                 sorted.forEach { item -> OwnedRow(item, onClick = { onOpenItem(item.id) }) }
             }
         }

@@ -112,4 +112,13 @@ class SealedTest {
         assertNull(SealedPrices.toPrice(CardmarketResult.NotFound("u")))
         assertNull(SealedPrices.toPrice(CardmarketResult.Failed(CardmarketResult.Kind.TIMEOUT, "x")))
     }
+
+    @Test
+    fun `the list filter matches name, set and type words`() {
+        val text = "Pitch Black Elite Trainer Box Pitch Black Elite Trainer Box"
+        assertTrue(SealedMatcher.matches("", text))
+        assertTrue(SealedMatcher.matches("pitch etb", text))
+        assertTrue(SealedMatcher.matches("blak", text))
+        assertTrue(!SealedMatcher.matches("tin", text))
+    }
 }

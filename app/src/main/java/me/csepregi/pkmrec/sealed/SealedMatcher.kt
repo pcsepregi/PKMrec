@@ -31,6 +31,12 @@ object SealedMatcher {
             .map { it.first }
     }
 
+    /** Whether every typed word matches a word of [text], by the same rules; an empty query matches everything. */
+    fun matches(query: String, text: String): Boolean {
+        val typed = queryWords(query)
+        return typed.isEmpty() || score(typed, words(text)) != null
+    }
+
     internal fun queryWords(query: String): List<String> =
         words(query).flatMap { ABBREVIATIONS[it] ?: listOf(it) }.distinct()
 

@@ -213,7 +213,8 @@
     <string name="sealed_add_hint">Termék hozzáadása (pl. pitch black etb)</string>
     <string name="sealed_no_match">Nincs ilyen termék a Cardmarket listában.</string>
     <string name="sealed_owned">%1$d db megvan</string>
-    <string name="sealed_sort">Rendezés:</string>
+    <string name="sealed_filter">Szűrés</string>
+    <string name="sealed_filter_none">Nincs ilyen termék a listádban.</string>
     <string name="sealed_sort_name">Név</string>
     <string name="sealed_sort_value">Érték</string>
     <string name="sealed_empty">Még nincs termék a listában. Keresd meg fent, és add hozzá.</string>
