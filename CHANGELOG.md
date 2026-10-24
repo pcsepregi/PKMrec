@@ -7,6 +7,10 @@ Release notes shown in the app's update dialog are taken from the matching secti
 - Tests with real, anonymised TCG Collector page samples (needs saved pages from a logged-in browser).
 - Enable R8 code shrinking for a smaller APK.
 
+## 0.7.1
+
+- Home screen: new icons for the two buttons (scanner frame for card recognition, magnifier "P" for Pokédex), and both buttons are the same height.
+
 ## 0.7.0
 
 New: Pokédex search.
