@@ -7,6 +7,13 @@ Release notes shown in the app's update dialog are taken from the matching secti
 - Tests with real, anonymised TCG Collector page samples (needs saved pages from a logged-in browser).
 - Enable R8 code shrinking for a smaller APK.
 
+## 0.10.1
+
+Test build for the Cardmarket price.
+- Settings: new "Cardmarket ár (próba)" screen. It opens Cardmarket in the app, applies the English / Good or better filter on a card's page and computes the price (2 cheapest skipped, average of the next 5).
+- "Árlista teszt" downloads Cardmarket's public daily price guide and shows the card's average and trend prices from it.
+- "Jelentés másolása" copies what the app saw, to fine-tune the price reading.
+
 ## 0.10.0
 
 New: set symbol recognition, for older cards without a printed set code.
