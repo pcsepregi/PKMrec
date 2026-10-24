@@ -54,7 +54,7 @@ import me.csepregi.pkmrec.update.UpdateManager
 import me.csepregi.pkmrec.update.UpdateState
 
 @Composable
-fun SettingsScreen(onBack: () -> Unit, onLogin: () -> Unit) {
+fun SettingsScreen(onBack: () -> Unit, onLogin: () -> Unit, onCardmarketProbe: () -> Unit) {
     val context = LocalContext.current
     val updateState by UpdateManager.state.collectAsState()
     val session by TcgSession.state.collectAsState()
@@ -130,6 +130,19 @@ fun SettingsScreen(onBack: () -> Unit, onLogin: () -> Unit) {
                         ErrorLog.clear()
                         count = ErrorLog.entryCount()
                     }) { Text(stringResource(R.string.settings_error_log_clear)) }
+                }
+            }
+
+            HorizontalDivider()
+
+            Section(title = stringResource(R.string.settings_cardmarket_probe)) {
+                Text(
+                    stringResource(R.string.settings_cardmarket_probe_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedButton(onClick = onCardmarketProbe, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.settings_cardmarket_probe_open))
                 }
             }
 

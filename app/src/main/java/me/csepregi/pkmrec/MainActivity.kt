@@ -18,6 +18,7 @@ import androidx.navigation.navArgument
 import androidx.navigation.compose.rememberNavController
 import me.csepregi.pkmrec.tcg.TcgSession
 import me.csepregi.pkmrec.ui.CameraScreen
+import me.csepregi.pkmrec.ui.CardmarketProbeScreen
 import me.csepregi.pkmrec.ui.CurrentScan
 import me.csepregi.pkmrec.ui.HomeScreen
 import me.csepregi.pkmrec.ui.LoginScreen
@@ -98,7 +99,11 @@ class MainActivity : ComponentActivity() {
                             SettingsScreen(
                                 onBack = { nav.popBackStack() },
                                 onLogin = { nav.navigate(Routes.LOGIN) },
+                                onCardmarketProbe = { nav.navigate(Routes.CARDMARKET_PROBE) },
                             )
+                        }
+                        composable(Routes.CARDMARKET_PROBE) {
+                            CardmarketProbeScreen(onBack = { nav.popBackStack() })
                         }
                         composable(Routes.LOGIN) {
                             LoginScreen(onDone = { nav.popBackStack() })
@@ -130,6 +135,7 @@ object Routes {
     const val LOOKUP = "lookup"
     const val POKEDEX = "pokedex"
     const val POKEDEX_RESULT = "pokedex/{number}"
+    const val CARDMARKET_PROBE = "cardmarket-probe"
 
     fun pokedexResult(number: Int) = "pokedex/$number"
 }
