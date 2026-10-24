@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import me.csepregi.pkmrec.BuildConfig
+import me.csepregi.pkmrec.diagnostics.ErrorLog
 import okhttp3.OkHttpClient
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -88,7 +89,10 @@ object UpdateManager {
                         UpdateState.UpToDate
                     }
                 }
-                .onFailure { _state.value = UpdateState.CheckFailed(it.message ?: it.javaClass.simpleName) }
+                .onFailure {
+                    ErrorLog.log("update check", it)
+                    _state.value = UpdateState.CheckFailed(it.message ?: it.javaClass.simpleName)
+                }
         }
     }
 
@@ -122,6 +126,7 @@ object UpdateManager {
                 _state.value = UpdateState.Installing
                 install(appContext, apk)
             } catch (e: Exception) {
+                ErrorLog.log("update", e)
                 _state.value = UpdateState.Failed(e.message ?: e.javaClass.simpleName)
             }
         }
@@ -155,6 +160,7 @@ object UpdateManager {
 
     /** Called by [InstallResultReceiver] when installation failed or was cancelled. */
     internal fun onInstallFailed(message: String) {
+        ErrorLog.log("update install", message = message)
         _state.value = UpdateState.Failed(message)
     }
 

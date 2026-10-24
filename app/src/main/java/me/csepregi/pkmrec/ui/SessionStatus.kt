@@ -42,8 +42,8 @@ fun SessionStatus(state: SessionState, onLogin: () -> Unit, modifier: Modifier =
                     stringResource(R.string.session_logged_out) to (stringResource(R.string.login) to onLogin)
                 is SessionState.Error -> {
                     val msg = state.lastUser?.let {
-                        stringResource(R.string.session_error_last_user, it.displayName, state.message)
-                    } ?: stringResource(R.string.session_error, state.message)
+                        stringResource(R.string.session_error_last_user, it.displayName, tcgErrorText(state.error))
+                    } ?: stringResource(R.string.session_error, tcgErrorText(state.error))
                     msg to (stringResource(R.string.retry) to { TcgSession.refresh(context) })
                 }
             }

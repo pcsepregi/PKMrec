@@ -3,13 +3,15 @@ package me.csepregi.pkmrec.tcg
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import me.csepregi.pkmrec.diagnostics.ErrorLog
 import me.csepregi.pkmrec.recognition.CardReading
 import java.net.URLEncoder
+import kotlin.coroutines.cancellation.CancellationException
 
 sealed interface LookupOutcome {
     data class Found(val match: MatchResult) : LookupOutcome
     data object NotLoggedIn : LookupOutcome
-    data class Error(val message: String) : LookupOutcome
+    data class Error(val error: TcgError) : LookupOutcome
 }
 
 /** Finds a scanned card on TCG Collector (read-only) together with the user's collection data. */
@@ -33,8 +35,8 @@ object CardLookup {
             var result: MatchResult = MatchResult.NotFound
             while (page <= MAX_PAGES) {
                 val listPage = client.fetchPage(searchUrl(query, "list", page))
-                val state = listPage.appState
-                if (state == null || TcgUser.fromAppState(state) == null) return@withContext LookupOutcome.NotLoggedIn
+                val state = listPage.requireAppState()
+                if (TcgUser.fromAppState(state) == null) return@withContext LookupOutcome.NotLoggedIn
                 val found = TcgSearchParser.parseListPage(listPage.html, state)
                 found.forEach { pageOfCard[it.id] = page }
                 cards += found
@@ -45,8 +47,11 @@ object CardLookup {
             }
 
             LookupOutcome.Found(withImages(client, query, result, pageOfCard))
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            LookupOutcome.Error(e.message ?: e.javaClass.simpleName)
+            ErrorLog.log("lookup", e, "reading ${reading.display}")
+            LookupOutcome.Error(TcgError.of(e))
         }
     }
 

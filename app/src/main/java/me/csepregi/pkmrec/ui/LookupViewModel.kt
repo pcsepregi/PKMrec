@@ -17,6 +17,7 @@ import me.csepregi.pkmrec.tcg.PokedexList
 import me.csepregi.pkmrec.tcg.PokedexListCards
 import me.csepregi.pkmrec.tcg.PokedexLookupResult
 import me.csepregi.pkmrec.tcg.TcgCard
+import me.csepregi.pkmrec.tcg.TcgError
 
 /** The reading handed from the camera screen to the lookup screen. */
 object CurrentScan {
@@ -26,7 +27,7 @@ object CurrentScan {
 sealed interface LookupUiState {
     data object Searching : LookupUiState
     data object NotLoggedIn : LookupUiState
-    data class Error(val message: String) : LookupUiState
+    data class Error(val error: TcgError) : LookupUiState
     data object NotFound : LookupUiState
     data class PickCandidate(val candidates: List<TcgCard>) : LookupUiState
     data class PickVariant(val card: TcgCard, val canGoBackToCandidates: Boolean) : LookupUiState
@@ -42,7 +43,8 @@ sealed interface PokedexUiState {
     data object Idle : PokedexUiState
     data object Loading : PokedexUiState
     data object NotAPokemon : PokedexUiState
-    data class Error(val message: String) : PokedexUiState
+    data object NotLoggedIn : PokedexUiState
+    data class Error(val error: TcgError) : PokedexUiState
     data class Loaded(val perPokemon: List<PokedexListCards>, val scannedCardId: Int) : PokedexUiState
 }
 
@@ -75,7 +77,7 @@ class LookupViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _state.value = when (val outcome = CardLookup.lookup(getApplication(), r)) {
                 LookupOutcome.NotLoggedIn -> LookupUiState.NotLoggedIn
-                is LookupOutcome.Error -> LookupUiState.Error(outcome.message)
+                is LookupOutcome.Error -> LookupUiState.Error(outcome.error)
                 is LookupOutcome.Found -> when (val match = outcome.match) {
                     MatchResult.NotFound -> LookupUiState.NotFound
                     is MatchResult.Single -> {
@@ -109,14 +111,16 @@ class LookupViewModel(app: Application) : AndroidViewModel(app) {
             _pokedex.value = PokedexUiState.Idle
             return
         }
-        if (pokedexCardId == card.id && _pokedex.value !is PokedexUiState.Error) return
+        val failed = _pokedex.value.let { it is PokedexUiState.Error || it == PokedexUiState.NotLoggedIn }
+        if (pokedexCardId == card.id && !failed) return
         pokedexCardId = card.id
         pokedexJob?.cancel()
         _pokedex.value = PokedexUiState.Loading
         pokedexJob = viewModelScope.launch {
             _pokedex.value = when (val result = PokedexList.lookup(getApplication(), card)) {
                 PokedexLookupResult.NotAPokemon -> PokedexUiState.NotAPokemon
-                is PokedexLookupResult.Error -> PokedexUiState.Error(result.message)
+                PokedexLookupResult.NotLoggedIn -> PokedexUiState.NotLoggedIn
+                is PokedexLookupResult.Error -> PokedexUiState.Error(result.error)
                 is PokedexLookupResult.Found -> PokedexUiState.Loaded(result.perPokemon, card.id)
             }
         }

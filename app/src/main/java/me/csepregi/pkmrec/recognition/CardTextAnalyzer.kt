@@ -6,6 +6,7 @@ import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
 import android.graphics.Matrix
 import android.graphics.Paint
+import android.graphics.RectF
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import com.google.mlkit.vision.common.InputImage
@@ -85,22 +86,34 @@ class CardTextAnalyzer(
                     return@addOnCompleteListener
                 }
 
-                val upright = try {
-                    image.toBitmap().rotated(rotation)
+                val frame = try {
+                    image.toBitmap()
                 } catch (e: Exception) {
                     null
                 } finally {
                     image.close()
                 }
-                if (upright == null || region.right > upright.width || region.bottom > upright.height) {
+                if (frame == null || region.right > width || region.bottom > height) {
+                    frame?.recycle()
                     deliver(quick, fullLines)
                     return@addOnCompleteListener
                 }
 
                 // Pass 2: the region enlarged, read as is and as inverted high-contrast grey
                 // (light text on a dark background becomes dark text on light).
-                val crop = cropAndEnlarge(upright, region)
-                val inverted = invertedHighContrast(crop.bitmap)
+                val images = try {
+                    cropAndEnlarge(frame, rotation, region).let { it to invertedHighContrast(it.bitmap) }
+                } catch (e: Exception) {
+                    null
+                } finally {
+                    // The full frame is a fresh copy made for this frame only; free it right away.
+                    frame.recycle()
+                }
+                if (images == null) {
+                    deliver(quick, fullLines)
+                    return@addOnCompleteListener
+                }
+                val (crop, inverted) = images
                 fun linesOf(text: Text) = text.toLines(
                     offsetX = region.left, offsetY = region.top, scale = crop.scale, fromStrip = true,
                 )
@@ -129,21 +142,49 @@ class CardTextAnalyzer(
         return Strip(left, top, right, bottom)
     }
 
-    /** Grey, contrast-stretched and inverted copy: white outlined digits on dark art become dark on light. */
-    private fun invertedHighContrast(source: Bitmap): Bitmap {
+    /** Grey, contrast-stretched and inverted: white outlined digits on dark art become dark on light. */
+    private val invertPaint = Paint().apply {
         val c = 1.6f
         val offset = 128f + 128f * c
-        val matrix = ColorMatrix(
-            floatArrayOf(
-                -c * 0.299f, -c * 0.587f, -c * 0.114f, 0f, offset,
-                -c * 0.299f, -c * 0.587f, -c * 0.114f, 0f, offset,
-                -c * 0.299f, -c * 0.587f, -c * 0.114f, 0f, offset,
-                0f, 0f, 0f, 1f, 0f,
+        colorFilter = ColorMatrixColorFilter(
+            ColorMatrix(
+                floatArrayOf(
+                    -c * 0.299f, -c * 0.587f, -c * 0.114f, 0f, offset,
+                    -c * 0.299f, -c * 0.587f, -c * 0.114f, 0f, offset,
+                    -c * 0.299f, -c * 0.587f, -c * 0.114f, 0f, offset,
+                    0f, 0f, 0f, 1f, 0f,
+                ),
             ),
         )
-        val result = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
-        Canvas(result).drawBitmap(source, 0f, 0f, Paint().apply { colorFilter = ColorMatrixColorFilter(matrix) })
+    }
+
+    private val scalePaint = Paint(Paint.FILTER_BITMAP_FLAG)
+
+    /*
+     * The enlarged crop and its inverted copy are drawn into the same two bitmaps frame after frame
+     * instead of new ones. Safe because frames are processed one at a time: the next frame's second
+     * pass only starts after both OCR runs of this one have finished.
+     */
+    private var cropBuffer: Bitmap? = null
+    private var invertedBuffer: Bitmap? = null
+
+    /** Inverted high-contrast copy of [source], in the reused buffer. */
+    private fun invertedHighContrast(source: Bitmap): Bitmap {
+        val result = reuse(invertedBuffer, source.width, source.height).also { invertedBuffer = it }
+        Canvas(result).drawBitmap(source, 0f, 0f, invertPaint)
         return result
+    }
+
+    /** [current] resized to [width] × [height] when its memory is large enough, otherwise a new bitmap. */
+    private fun reuse(current: Bitmap?, width: Int, height: Int): Bitmap {
+        if (current != null && !current.isRecycled && current.allocationByteCount >= width * height * 4) {
+            if (current.width != width || current.height != height) {
+                current.reconfigure(width, height, Bitmap.Config.ARGB_8888)
+            }
+            current.eraseColor(android.graphics.Color.TRANSPARENT)
+            return current
+        }
+        return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
     }
 
     /** A number like "123/193" printed at least ~2.2 % of the frame height tall means the corner is shown up close. */
@@ -154,6 +195,8 @@ class CardTextAnalyzer(
 
     override fun close() {
         recognizer.close()
+        cropBuffer = null
+        invertedBuffer = null
     }
 
     private data class Strip(val left: Int, val top: Int, val right: Int, val bottom: Int)
@@ -175,19 +218,23 @@ class CardTextAnalyzer(
         return Strip(left, stripTop, right, stripBottom)
     }
 
-    private fun cropAndEnlarge(source: Bitmap, strip: Strip): Crop {
+    /**
+     * The [strip] (in upright frame coordinates) of the camera [frame], enlarged, in the reused buffer.
+     * Rotation, crop and scaling are one drawing step, so no rotated copy of the whole frame is made.
+     */
+    private fun cropAndEnlarge(frame: Bitmap, rotation: Int, strip: Strip): Crop {
         val w = strip.right - strip.left
         val h = strip.bottom - strip.top
         val scale = min(3f, 2000f / w).coerceAtLeast(1f)
-        val matrix = Matrix().apply { postScale(scale, scale) }
-        val bitmap = Bitmap.createBitmap(source, strip.left, strip.top, w, h, matrix, true)
+        val matrix = Matrix().apply {
+            postRotate(rotation.toFloat())
+            val rotated = RectF(0f, 0f, frame.width.toFloat(), frame.height.toFloat()).also { mapRect(it) }
+            postTranslate(-rotated.left - strip.left, -rotated.top - strip.top)
+            postScale(scale, scale)
+        }
+        val bitmap = reuse(cropBuffer, (w * scale).roundToInt(), (h * scale).roundToInt()).also { cropBuffer = it }
+        Canvas(bitmap).drawBitmap(frame, matrix, scalePaint)
         return Crop(bitmap, scale)
-    }
-
-    private fun Bitmap.rotated(degrees: Int): Bitmap {
-        if (degrees == 0) return this
-        val matrix = Matrix().apply { postRotate(degrees.toFloat()) }
-        return Bitmap.createBitmap(this, 0, 0, width, height, matrix, true)
     }
 
     private fun Text.toLines(

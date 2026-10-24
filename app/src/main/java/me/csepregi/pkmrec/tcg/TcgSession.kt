@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import me.csepregi.pkmrec.diagnostics.ErrorLog
 
 sealed interface SessionState {
     /** Not checked yet in this app run. */
@@ -20,7 +21,7 @@ sealed interface SessionState {
     data object LoggedOut : SessionState
 
     /** The check failed (e.g. no network); [lastUser] is the user from the last successful check, if any. */
-    data class Error(val message: String, val lastUser: TcgUser?) : SessionState
+    data class Error(val error: TcgError, val lastUser: TcgUser?) : SessionState
 }
 
 /**
@@ -53,7 +54,7 @@ object TcgSession {
         scope.launch {
             _state.value = try {
                 val page = client(appContext).fetchPage(Tcg.SESSION_CHECK_URL)
-                val user = page.appState?.let { TcgUser.fromAppState(it) }
+                val user = TcgUser.fromAppState(page.requireAppState())
                 if (user != null) {
                     saveUser(appContext, user)
                     SessionState.LoggedIn(user)
@@ -62,7 +63,8 @@ object TcgSession {
                     SessionState.LoggedOut
                 }
             } catch (e: Exception) {
-                SessionState.Error(e.message ?: e.javaClass.simpleName, loadUser(appContext))
+                ErrorLog.log("session check", e)
+                SessionState.Error(TcgError.of(e), loadUser(appContext))
             }
         }
     }

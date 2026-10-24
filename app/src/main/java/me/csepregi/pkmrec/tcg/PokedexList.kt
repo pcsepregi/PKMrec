@@ -3,7 +3,9 @@ package me.csepregi.pkmrec.tcg
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import me.csepregi.pkmrec.diagnostics.ErrorLog
 import org.jsoup.Jsoup
+import kotlin.coroutines.cancellation.CancellationException
 
 /** A Pokédex entry linked from a card page, e.g. #0909 Fuecoco → `/pokedex/909/fuecoco/intl`. */
 data class PokedexEntry(val number: Int, val slug: String, val path: String)
@@ -15,7 +17,10 @@ sealed interface PokedexLookupResult {
     /** The scanned card has no Pokédex entry (Trainer, Energy). */
     data object NotAPokemon : PokedexLookupResult
     data class Found(val perPokemon: List<PokedexListCards>) : PokedexLookupResult
-    data class Error(val message: String) : PokedexLookupResult
+
+    /** The session expired: a logged-out page would show no list cards, which must not read as "none in your list". */
+    data object NotLoggedIn : PokedexLookupResult
+    data class Error(val error: TcgError) : PokedexLookupResult
 }
 
 /**
@@ -60,20 +65,27 @@ object PokedexList {
     suspend fun lookup(context: Context, card: TcgCard): PokedexLookupResult = withContext(Dispatchers.IO) {
         try {
             val client = TcgSession.client(context)
-            val entries = parsePokedexEntries(client.fetchPage(card.url).html)
+            val cardPage = client.fetchPage(card.url)
+            cardPage.requireAppState()
+            val entries = parsePokedexEntries(cardPage.html)
             if (entries.isEmpty()) return@withContext PokedexLookupResult.NotAPokemon
             val listId = listId(context)
             val perPokemon = entries.map { entry ->
                 val base = "${Tcg.BASE_URL}/pokedex/${entry.number}/${entry.slug}/intl?inUserCardList=$listId"
                 val listPage = client.fetchPage("$base&displayAs=list")
-                val cards = TcgSearchParser.parseListPage(listPage.html, listPage.appState)
+                val listState = listPage.requireAppState()
+                if (TcgUser.fromAppState(listState) == null) return@withContext PokedexLookupResult.NotLoggedIn
+                val cards = TcgSearchParser.parseListPage(listPage.html, listState)
                 val images = if (cards.isEmpty()) emptyMap() else
                     runCatching { TcgSearchParser.parseImagePage(client.fetchPage("$base&displayAs=images").html) }.getOrDefault(emptyMap())
                 PokedexListCards(entry, cards.map { it.copy(imageUrl = images[it.id]) })
             }
             PokedexLookupResult.Found(perPokemon)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            PokedexLookupResult.Error(e.message ?: e.javaClass.simpleName)
+            ErrorLog.log("pokedex list", e, card.url)
+            PokedexLookupResult.Error(TcgError.of(e))
         }
     }
 

@@ -1,5 +1,8 @@
 package me.csepregi.pkmrec.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
@@ -35,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import me.csepregi.pkmrec.BuildConfig
 import me.csepregi.pkmrec.R
+import me.csepregi.pkmrec.diagnostics.ErrorLog
 import me.csepregi.pkmrec.tcg.PokedexList
 import me.csepregi.pkmrec.tcg.SessionState
 import me.csepregi.pkmrec.tcg.TcgSession
@@ -92,6 +96,32 @@ fun SettingsScreen(onBack: () -> Unit, onLogin: () -> Unit) {
                         color = MaterialTheme.colorScheme.error,
                     )
                     else -> Unit
+                }
+            }
+
+            HorizontalDivider()
+
+            Section(title = stringResource(R.string.settings_error_log)) {
+                var count by remember { mutableIntStateOf(ErrorLog.entryCount()) }
+                Text(
+                    stringResource(R.string.settings_error_log_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(stringResource(R.string.settings_error_log_count, count), style = MaterialTheme.typography.bodyLarge)
+                Button(
+                    onClick = {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText("PKMrec error log", ErrorLog.report()))
+                        Toast.makeText(context, R.string.settings_error_log_copied, Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.settings_error_log_copy)) }
+                if (count > 0) {
+                    TextButton(onClick = {
+                        ErrorLog.clear()
+                        count = ErrorLog.entryCount()
+                    }) { Text(stringResource(R.string.settings_error_log_clear)) }
                 }
             }
 

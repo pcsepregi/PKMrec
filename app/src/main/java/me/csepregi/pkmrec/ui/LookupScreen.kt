@@ -48,6 +48,8 @@ import coil.compose.AsyncImage
 import me.csepregi.pkmrec.R
 import me.csepregi.pkmrec.tcg.CardVariant
 import me.csepregi.pkmrec.tcg.TcgCard
+import me.csepregi.pkmrec.tcg.TcgErrorKind
+import me.csepregi.pkmrec.update.UpdateManager
 
 /** Card proportions for images. */
 private const val CARD_IMAGE_ASPECT = 63f / 88f
@@ -99,8 +101,14 @@ fun LookupScreen(onRescan: () -> Unit, onHome: () -> Unit, onLogin: () -> Unit) 
                 }
 
                 is LookupUiState.Error -> Centered {
-                    Text(stringResource(R.string.lookup_error, s.message), textAlign = TextAlign.Center)
+                    Text(stringResource(R.string.lookup_error, tcgErrorText(s.error)), textAlign = TextAlign.Center)
                     Button(onClick = { vm.retry() }) { Text(stringResource(R.string.retry)) }
+                    if (s.error.kind == TcgErrorKind.SITE_CHANGED) {
+                        val context = LocalContext.current
+                        OutlinedButton(onClick = { UpdateManager.checkNow(context) }) {
+                            Text(stringResource(R.string.settings_check_update))
+                        }
+                    }
                 }
 
                 LookupUiState.NotFound -> Centered {
@@ -138,6 +146,7 @@ fun LookupScreen(onRescan: () -> Unit, onHome: () -> Unit, onLogin: () -> Unit) 
                     state = s,
                     pokedex = pokedex,
                     onRetryPokedex = { vm.retryPokedex() },
+                    onLogin = onLogin,
                     onRescan = onRescan,
                     onOtherVariant = { vm.backToVariants(s.card) },
                 )
@@ -160,6 +169,7 @@ private fun VerdictContent(
     state: LookupUiState.Verdict,
     pokedex: PokedexUiState,
     onRetryPokedex: () -> Unit,
+    onLogin: () -> Unit,
     onRescan: () -> Unit,
     onOtherVariant: () -> Unit,
 ) {
@@ -198,7 +208,7 @@ private fun VerdictContent(
 
     CardHeader(state.card, large = true)
 
-    PokedexSection(pokedex, onRetry = onRetryPokedex)
+    PokedexSection(pokedex, onRetry = onRetryPokedex, onLogin = onLogin)
 
     Button(onClick = onRescan, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.camera_rescan)) }
     if (state.canPickOtherVariant) {
@@ -214,7 +224,7 @@ private fun VerdictContent(
 
 /** "A Pokedex listádban": the list's card(s) for the same Pokémon. */
 @Composable
-private fun PokedexSection(state: PokedexUiState, onRetry: () -> Unit) {
+private fun PokedexSection(state: PokedexUiState, onRetry: () -> Unit, onLogin: () -> Unit) {
     if (state == PokedexUiState.Idle || state == PokedexUiState.NotAPokemon) return
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -228,8 +238,15 @@ private fun PokedexSection(state: PokedexUiState, onRetry: () -> Unit) {
                     Spacer(Modifier.width(10.dp))
                     Text(stringResource(R.string.lookup_pokedex_loading), style = MaterialTheme.typography.bodyMedium)
                 }
+                PokedexUiState.NotLoggedIn -> {
+                    Text(stringResource(R.string.lookup_pokedex_not_logged_in), style = MaterialTheme.typography.bodyMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = onLogin) { Text(stringResource(R.string.login)) }
+                        TextButton(onClick = onRetry) { Text(stringResource(R.string.retry)) }
+                    }
+                }
                 is PokedexUiState.Error -> {
-                    Text(stringResource(R.string.lookup_pokedex_error, state.message), style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.lookup_pokedex_error, tcgErrorText(state.error)), style = MaterialTheme.typography.bodyMedium)
                     TextButton(onClick = onRetry) { Text(stringResource(R.string.retry)) }
                 }
                 is PokedexUiState.Loaded -> state.perPokemon.forEach { entry ->

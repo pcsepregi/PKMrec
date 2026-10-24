@@ -51,7 +51,11 @@ object TcgSearchParser {
 
     private val CARD_ID_IN_PATH = Regex("""/cards/(\d+)/""")
 
-    /** Cards of a list-view page (`displayAs=list`) combined with its appState. */
+    /**
+     * Cards of a list-view page (`displayAs=list`) combined with its appState.
+     * Throws [PageFormatException] when the page has results that cannot be read (the site changed),
+     * so that this is not mistaken for "card not found".
+     */
     fun parseListPage(html: String, appState: JsonObject?): List<TcgCard> {
         val doc = Jsoup.parse(html)
         val regions = appState.objectAt("cardIdToTcgRegionIdMap")
@@ -59,7 +63,7 @@ object TcgSearchParser {
         val variantTypes = appState.objectAt("idToCardVariantTypeDtoMap")
         val collection = appState.objectAt("cardIdToCardCollectionCardDtoMap")
 
-        return doc.select("div.card-list-item[data-card-id]").mapNotNull { row ->
+        val cards = doc.select("div.card-list-item[data-card-id]").mapNotNull { row ->
             val id = row.attr("data-card-id").toIntOrNull() ?: return@mapNotNull null
             val link = row.selectFirst("a.card-list-item-name-entry") ?: return@mapNotNull null
             val key = id.toString()
@@ -77,6 +81,13 @@ object TcgSearchParser {
                 variants = variantsOf(key, variantIds, variantTypes, collection),
             )
         }
+        if (cards.isEmpty() && doc.selectFirst("[data-card-id]") != null) {
+            throw PageFormatException("search result rows could not be read")
+        }
+        if (cards.isNotEmpty() && appState != null && variantIds == null) {
+            throw PageFormatException("no card variants in appState")
+        }
+        return cards
     }
 
     /** Card ID → image URL from an image-view page (`displayAs=images`). */

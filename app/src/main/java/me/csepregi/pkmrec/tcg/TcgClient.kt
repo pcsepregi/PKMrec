@@ -7,7 +7,6 @@ import okhttp3.CookieJar
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /** TCG Collector website constants. */
@@ -38,7 +37,15 @@ class WebViewCookieJar : CookieJar {
 }
 
 /** A downloaded page with its embedded appState. */
-data class TcgPage(val finalUrl: String, val html: String, val appState: JsonObject?)
+data class TcgPage(val finalUrl: String, val html: String, val appState: JsonObject?) {
+
+    /** Every regular TCG Collector page has an appState; without one it is a maintenance page or the site changed. */
+    fun requireAppState(): JsonObject = appState ?: throw if (html.contains("maintenance", ignoreCase = true)) {
+        MaintenanceException()
+    } else {
+        PageFormatException("no appState on $finalUrl")
+    }
+}
 
 /**
  * Low-level HTTP access to TCG Collector pages, using the WebView's session cookies and
@@ -61,7 +68,7 @@ class TcgClient(private val userAgent: String) {
             .header("Accept-Language", "en-US,en;q=0.9")
             .build()
         http.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
+            if (!response.isSuccessful) throw HttpStatusException(response.code)
             val html = response.body!!.string()
             return TcgPage(response.request.url.toString(), html, AppStateExtractor.extract(html))
         }

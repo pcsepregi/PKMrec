@@ -14,6 +14,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.CameraState
 import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
@@ -54,6 +55,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -75,6 +77,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import me.csepregi.pkmrec.BuildConfig
 import me.csepregi.pkmrec.R
+import me.csepregi.pkmrec.diagnostics.ErrorLog
 import me.csepregi.pkmrec.recognition.CardReading
 import me.csepregi.pkmrec.recognition.CardTextAnalyzer
 import me.csepregi.pkmrec.recognition.OcrLine
@@ -84,6 +87,9 @@ import kotlin.math.roundToInt
 
 /** Card proportions (63 × 88 mm). */
 private const val CARD_ASPECT = 63f / 88f
+
+/** The camera opens zoomed in: the small set code and number are sharper from a distance the lens can focus at. */
+private const val DEFAULT_ZOOM = 2f
 
 @Composable
 fun CameraScreen(onBack: () -> Unit, onRecognized: (CardReading) -> Unit) {
@@ -133,6 +139,8 @@ private fun ScannerContent(onBack: () -> Unit, onRecognized: (CardReading) -> Un
     var camera by remember { mutableStateOf<Camera?>(null) }
     var torchOn by remember { mutableStateOf(false) }
     var zoomed by remember { mutableStateOf(false) }
+    var cameraError by remember { mutableStateOf<Int?>(null) }
+    var cameraAttempt by remember { mutableIntStateOf(0) }
     var showManual by remember { mutableStateOf(false) }
     var showRaw by remember { mutableStateOf(false) }
     var rawLines by remember { mutableStateOf<List<OcrLine>>(emptyList()) }
@@ -158,39 +166,65 @@ private fun ScannerContent(onBack: () -> Unit, onRecognized: (CardReading) -> Un
 
     val previewView = remember { PreviewView(context).apply { scaleType = PreviewView.ScaleType.FILL_CENTER } }
 
-    DisposableEffect(lifecycleOwner) {
+    DisposableEffect(Unit) {
+        onDispose { analyzer.close() }
+    }
+
+    DisposableEffect(lifecycleOwner, cameraAttempt) {
         val executor = Executors.newSingleThreadExecutor()
+        val mainExecutor = ContextCompat.getMainExecutor(context)
         val providerFuture = ProcessCameraProvider.getInstance(context)
         var provider: ProcessCameraProvider? = null
+        var bound: Camera? = null
         providerFuture.addListener({
-            val p = providerFuture.get()
-            provider = p
-            val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
-            val analysis = ImageAnalysis.Builder()
-                .setResolutionSelector(
-                    ResolutionSelector.Builder()
-                        .setResolutionStrategy(
-                            ResolutionStrategy(
-                                Size(1920, 1080),
-                                ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER,
-                            ),
-                        )
-                        .build(),
-                )
-                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                .build()
-                .also { it.setAnalyzer(executor, analyzer) }
-            p.unbindAll()
-            val cam = p.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
-            camera = cam
-            reduceExposure(cam)
-            previewView.post { focusOnBottomStrip(cam, previewView) }
-        }, ContextCompat.getMainExecutor(context))
+            try {
+                val p = providerFuture.get()
+                provider = p
+                val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
+                val analysis = ImageAnalysis.Builder()
+                    .setResolutionSelector(
+                        ResolutionSelector.Builder()
+                            .setResolutionStrategy(
+                                ResolutionStrategy(
+                                    Size(1920, 1080),
+                                    ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER,
+                                ),
+                            )
+                            .build(),
+                    )
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .build()
+                    .also { it.setAnalyzer(executor, analyzer) }
+                p.unbindAll()
+                val cam = p.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+                bound = cam
+                camera = cam
+                cameraError = null
+                // Errors after a successful start, e.g. another app taking the camera; CameraX recovers from most by itself.
+                var loggedError: Int? = null
+                cam.cameraInfo.cameraState.observe(lifecycleOwner) { state ->
+                    val error = state.error
+                    if (error != null && error.code != loggedError) {
+                        ErrorLog.log("camera", error.cause, "camera state error ${error.code} (${state.type})")
+                    }
+                    loggedError = error?.code
+                    cameraError = error?.let { cameraErrorMessage(it.code) }
+                }
+                reduceExposure(cam)
+                val zoom = cam.cameraControl.setZoomRatio(DEFAULT_ZOOM)
+                zoom.addListener({ zoomed = runCatching { zoom.get() }.isSuccess }, mainExecutor)
+                previewView.post { focusOnBottomStrip(cam, previewView) }
+            } catch (e: Exception) {
+                ErrorLog.log("camera start", e)
+                camera = null
+                cameraError = R.string.camera_error_start
+            }
+        }, mainExecutor)
 
         onDispose {
+            bound?.cameraInfo?.cameraState?.removeObservers(lifecycleOwner)
             provider?.unbindAll()
             executor.shutdown()
-            analyzer.close()
         }
     }
 
@@ -249,7 +283,17 @@ private fun ScannerContent(onBack: () -> Unit, onRecognized: (CardReading) -> Un
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             val result = confirmed
-            if (result != null) {
+            val error = cameraError
+            if (error != null && result == null) {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(stringResource(error), style = MaterialTheme.typography.bodyLarge)
+                        Button(onClick = { cameraAttempt++ }, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.retry))
+                        }
+                    }
+                }
+            } else if (result != null) {
                 RecognizedCard(
                     reading = result,
                     onRescan = {
@@ -320,6 +364,12 @@ private fun ScannerContent(onBack: () -> Unit, onRecognized: (CardReading) -> Un
             },
         )
     }
+}
+
+private fun cameraErrorMessage(code: Int): Int = when (code) {
+    CameraState.ERROR_CAMERA_IN_USE, CameraState.ERROR_MAX_CAMERAS_IN_USE -> R.string.camera_error_in_use
+    CameraState.ERROR_CAMERA_DISABLED, CameraState.ERROR_DO_NOT_DISTURB_MODE_ENABLED -> R.string.camera_error_disabled
+    else -> R.string.camera_error_other
 }
 
 /** About -0.7 EV: keeps text under sleeve glare from burning out to white. */

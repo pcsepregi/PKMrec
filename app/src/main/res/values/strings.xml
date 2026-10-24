@@ -20,14 +20,14 @@
     <string name="session_logged_in">Bejelentkezve: %1$s</string>
     <string name="session_premium">Prémium</string>
     <string name="session_logged_out">Nincs bejelentkezve a TCG Collectorba</string>
-    <string name="session_error">Nem sikerült ellenőrizni a bejelentkezést (%1$s)</string>
-    <string name="session_error_last_user">Utoljára bejelentkezve: %1$s. Nem sikerült ellenőrizni (%2$s).</string>
+    <string name="session_error">Nem sikerült ellenőrizni a bejelentkezést. %1$s</string>
+    <string name="session_error_last_user">Utoljára bejelentkezve: %1$s. Nem sikerült ellenőrizni. %2$s</string>
     <string name="retry">Újra</string>
     <string name="settings_account">TCG Collector fiók</string>
 
     <!-- Camera / recognition -->
     <string name="camera_hint">Mutasd a teljes kártyát a keretben, vagy közelről csak a bal alsó sarkát (szettkód és szám).</string>
-    <string name="camera_glare_tip">Közelről nem éles? Kapcsolj 2x-es zoomra, és tartsd messzebb a telefont. Csillog? Döntsd meg kicsit, a vakut hagyd kikapcsolva. Koppintással oda élesít, ahová koppintasz.</string>
+    <string name="camera_glare_tip">Közelről nem éles? Tartsd messzebb a telefont, a 2x-es zoom így is elég nagyra hozza. Csillog? Döntsd meg kicsit, a vakut hagyd kikapcsolva. Koppintással oda élesít, ahová koppintasz.</string>
     <string name="camera_searching">Keresem a kártya számát…</string>
     <string name="camera_reading">Olvasom: %1$s</string>
     <string name="camera_recognized">Felismert kártya</string>
@@ -46,13 +46,17 @@
     <string name="camera_permission_text">A kártya felismeréséhez az appnak hozzá kell férnie a kamerához. A képek a telefonon maradnak, sehova nem töltődnek fel.</string>
     <string name="camera_permission_allow">Engedélyezés</string>
     <string name="camera_permission_settings">Beállítások megnyitása</string>
+    <string name="camera_error_start">Nem sikerült elindítani a kamerát. Lehet, hogy egy másik app használja. Zárd be, és próbáld újra.</string>
+    <string name="camera_error_in_use">A kamerát most egy másik app használja. Zárd be azt az appot, és a kamera magától visszajön.</string>
+    <string name="camera_error_disabled">A kamera le van tiltva a telefonon (pl. adatvédelmi beállítás vagy ne zavarjanak mód).</string>
+    <string name="camera_error_other">A kamera hibát jelzett. Próbáld újra, vagy indítsd újra az appot.</string>
 
     <!-- Lookup / result -->
     <string name="lookup_home">Főoldal</string>
     <string name="lookup_scanned">Beolvasva: %1$s</string>
     <string name="lookup_searching">Keresés a TCG Collectoron…</string>
     <string name="lookup_not_logged_in">A kereséshez be kell jelentkezned a TCG Collectorba.</string>
-    <string name="lookup_error">Nem sikerült a keresés: %1$s</string>
+    <string name="lookup_error">Nem sikerült a keresés. %1$s</string>
     <string name="lookup_not_found">Nem találtam ilyen angol kártyát a TCG Collectoron. Próbáld újra szkennelni, vagy add meg kézzel a számot.</string>
     <string name="lookup_pick_candidate">Melyik kártya ez?</string>
     <string name="lookup_pick_variant">Melyik változat van a kezedben?</string>
@@ -65,7 +69,8 @@
     <string name="lookup_open_tcg">Megnyitás a TCG Collectoron</string>
     <string name="lookup_pokedex_title">A Pokedex listádban</string>
     <string name="lookup_pokedex_loading">Keresem a listádban…</string>
-    <string name="lookup_pokedex_error">Nem sikerült megnézni a listát: %1$s</string>
+    <string name="lookup_pokedex_error">Nem sikerült megnézni a listát. %1$s</string>
+    <string name="lookup_pokedex_not_logged_in">A listád megnézéséhez újra be kell jelentkezned a TCG Collectorba.</string>
     <string name="lookup_pokedex_none">Ebből a Pokémonból még nincs kártya a listádban.</string>
     <string name="lookup_pokedex_same_card">Pontosan ez a kártya van a listádban.</string>
     <string name="verdict_owned">MEGVAN</string>
@@ -84,6 +89,22 @@
     <string name="settings_pokedex_list_saved">Lista elmentve</string>
     <string name="settings_pokedex_list_invalid">Ez nem egy TCG Collector lista linkje</string>
     <string name="settings_pokedex_list_open">Lista megnyitása</string>
+
+    <!-- Error log -->
+    <string name="settings_error_log">Hibanapló</string>
+    <string name="settings_error_log_desc">A hibák csak itt, a telefonon kerülnek naplóba, az app sehova nem küldi el őket. Ha valami nem működik, másold ki és küldd el.</string>
+    <string name="settings_error_log_count">Bejegyzések: %1$d</string>
+    <string name="settings_error_log_copy">Hibanapló másolása</string>
+    <string name="settings_error_log_copied">Hibanapló vágólapra másolva</string>
+    <string name="settings_error_log_clear">Napló törlése</string>
+
+    <!-- Errors talking to TCG Collector -->
+    <string name="error_no_internet">Nincs internetkapcsolat. Ellenőrizd a wifit vagy a mobilnetet, és próbáld újra.</string>
+    <string name="error_timeout">A TCG Collector nem válaszolt időben. Próbáld újra.</string>
+    <string name="error_too_many_requests">Túl sok kérés ment rövid idő alatt a TCG Collectornak. Várj egy percet, és próbáld újra.</string>
+    <string name="error_unavailable">A TCG Collector most nem elérhető (lehet, hogy karbantartás miatt). Próbáld újra később.</string>
+    <string name="error_site_changed">A TCG Collector megváltoztatta az oldalát, ezért az appot frissíteni kell. Nézd meg, van-e új verzió.</string>
+    <string name="error_other">Váratlan hiba: %1$s</string>
 
     <!-- Update -->
     <string name="update_available_title">Új verzió érhető el</string>
