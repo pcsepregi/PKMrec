@@ -29,7 +29,7 @@ Version 1.0.0: all milestones of the original plan are done, plus several featur
 ## Scope and limitations
 
 - English (International TCG region) cards only; only English copies in the collection count as "owned".
-- Read-only: the app never changes your TCG Collector collection or lists.
+- The only change the app makes on TCG Collector is the "add to collection" button on the recognition result (one copy, with undo). Every change is recorded in the collection log in Settings. Lists are never changed.
 - TCG Collector has no public API. The app reads the same pages you see in a browser, using your own session. If the website changes, the app may need an update. This is intended for personal use only.
 - Your TCG Collector password is entered only on the TCG Collector login page inside the app and is never stored by the app; only the session cookie is kept on the phone.
 - Cardmarket has no open API either: prices are read from Cardmarket's public pages in an invisible browser view on the phone, so they also depend on the website staying the same.

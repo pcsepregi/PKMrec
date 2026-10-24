@@ -42,7 +42,7 @@ Notes for continuing development in a new chat. Read together with `README.md`, 
 
 - On start (at most every 6 h) and from Settings → "Frissítés keresése": GitHub Releases `latest` → dialog → download → SHA-256 check → PackageInstaller with `USER_ACTION_NOT_REQUIRED`. Debug builds (`.debug` package) do not self-update.
 
-## TCG Collector integration (read-only)
+## TCG Collector integration
 
 - Login: TCG Collector's own `/sign-in` page in a WebView. The app never sees the password; OkHttp shares the WebView cookies. Logged-in state = `appState.userDto` present.
 - Every page embeds `window.tcgcollector = { appState: {...} }`. Used fields: `cardIdToTcgRegionIdMap`, `cardIdToCardVariantTypeIdsMap`, `idToCardVariantTypeDtoMap` (variant names), `cardIdToCardCollectionCardDtoMap` (owned entries: variant, language, count), `hasMultiplePages`, `userDto`.
@@ -51,6 +51,7 @@ Notes for continuing development in a new chat. Read together with `README.md`, 
 - Matching: same number (leading zeros ignored) → set code (exact, then loose: glued regulation mark "OMEG", O/0, one wrong char) → fuzzy name → else candidate picker (with "Egyik sem").
 - Pokedex list: card page footer links its Pokédex entries (`/pokedex/<n>/<slug>/intl`); `.../pokedex/<n>/<slug>/intl?inUserCardList=<listId>&displayAs=list` returns exactly the list's card for that Pokémon. Default list ID 65678 ("Pokedex"), changeable in Settings; lookup can be switched off in Settings.
 - Pokédex search (0.7.0): names come from `/pokedex` (`a.pokedex-grid-item-name`, href `/pokedex/<n>/<slug>`; 1025 entries in Oct 2026). Lookup goes straight to `/pokedex/<n>/<slug>/intl?inUserCardList=<listId>`; the card page header gives the energy type (`#card-energy-types img[alt]`) and HP (`#card-hit-points-value`). Name correction (`NameMatcher`): accents/punctuation dropped, Hungarian spelling (dzs→j, cs→ch, sz→s), prefix match, then edit distance with transpositions.
+- Collection writes (1.3.0, `tcg/CollectionWriter.kt`), the same requests as the website's own scripts: `POST /card-collection/bulk-merge` (adds counts to existing entries) and `PUT /card-collection/bulk-replace` (sets all entries of a card), JSON body `[{"cardId": n, "entries": [{"cardVariantTypeId", "cardLanguageId", "cardConditionId", "note", "cardCount"}]}]`, headers `X-Requested-With: XMLHttpRequest` and `appState.csrfTokenHttpHeaderKey` (`X-CSRF-Token`) = `appState.csrfToken`. Default condition: `appState.defaultCardCollectionParametersDto.cardConditionId`. Every write loads the card page before (entries for undo, token) and after (checks the new count); undo = bulk-replace with the entries from before. Each change goes to `collection/CollectionLog.kt` (Settings → "Kollekció napló", newest 500).
 - For inspecting pages, Pali can log in to TCG Collector in the Claude desktop app's built-in browser; Claude then reads pages there (read-only).
 
 ## Recognition pipeline and lessons learned

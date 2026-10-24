@@ -6,7 +6,9 @@ import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 
 /** TCG Collector website constants. */
@@ -72,5 +74,30 @@ class TcgClient(private val userAgent: String) {
             val html = response.body!!.string()
             return TcgPage(response.request.url.toString(), html, AppStateExtractor.extract(html))
         }
+    }
+
+    /**
+     * Sends a JSON request like the website's own scripts do (`X-Requested-With`, CSRF header)
+     * and returns the response text. Throws [HttpStatusException] when TCG Collector refuses it.
+     */
+    fun sendJson(method: String, url: String, json: String, headers: Map<String, String>, referer: String): String {
+        val builder = Request.Builder()
+            .url(url)
+            .method(method, json.toRequestBody(JSON))
+            .header("User-Agent", userAgent)
+            .header("Accept", "application/json")
+            .header("Accept-Language", "en-US,en;q=0.9")
+            .header("X-Requested-With", "XMLHttpRequest")
+            .header("Origin", Tcg.BASE_URL)
+            .header("Referer", referer)
+        headers.forEach { (name, value) -> builder.header(name, value) }
+        http.newCall(builder.build()).execute().use { response ->
+            if (!response.isSuccessful) throw HttpStatusException(response.code)
+            return response.body?.string().orEmpty()
+        }
+    }
+
+    private companion object {
+        val JSON = "application/json; charset=utf-8".toMediaType()
     }
 }

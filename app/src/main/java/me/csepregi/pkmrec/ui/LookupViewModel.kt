@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,6 +16,8 @@ import me.csepregi.pkmrec.recognition.CardReading
 import me.csepregi.pkmrec.recognition.GrayImage
 import me.csepregi.pkmrec.tcg.CardLookup
 import me.csepregi.pkmrec.tcg.CardVariant
+import me.csepregi.pkmrec.tcg.CollectionEntry
+import me.csepregi.pkmrec.tcg.CollectionWriter
 import me.csepregi.pkmrec.tcg.LookupOutcome
 import me.csepregi.pkmrec.tcg.MatchResult
 import me.csepregi.pkmrec.tcg.PokedexList
@@ -24,6 +27,7 @@ import me.csepregi.pkmrec.tcg.SetSymbolChoice
 import me.csepregi.pkmrec.tcg.SymbolRanking
 import me.csepregi.pkmrec.tcg.TcgCard
 import me.csepregi.pkmrec.tcg.TcgError
+import me.csepregi.pkmrec.tcg.WriteOutcome
 import kotlin.coroutines.cancellation.CancellationException
 
 /** The reading handed from the camera screen to the lookup screen, with the set symbol crop if one was seen. */
@@ -65,7 +69,37 @@ sealed interface PokedexUiState {
     data class Loaded(val perPokemon: List<PokedexListCards>, val scannedCardId: Int) : PokedexUiState
 }
 
+/** The "Hozzáadás a kollekcióhoz" button under the verdict. */
+sealed interface AddUiState {
+    data object Idle : AddUiState
+    data object Adding : AddUiState
+
+    /** One copy added; [canUndo] for [UNDO_SECONDS] seconds after it. */
+    data class Added(val count: Int, val canUndo: Boolean) : AddUiState
+    data object Undoing : AddUiState
+    data class Undone(val count: Int) : AddUiState
+    data object NotLoggedIn : AddUiState
+
+    /** TCG Collector answered, but the card does not show the change. */
+    data object NotApplied : AddUiState
+    data class Error(val error: TcgError) : AddUiState
+
+    companion object {
+        const val UNDO_SECONDS = 6
+    }
+}
+
 class LookupViewModel(app: Application) : AndroidViewModel(app) {
+
+    private val _add = MutableStateFlow<AddUiState>(AddUiState.Idle)
+    val add: StateFlow<AddUiState> = _add.asStateFlow()
+    private var undoTimer: Job? = null
+
+    /** Changes with every new verdict, so a late write result is not shown on another card. */
+    private var addGeneration = 0
+
+    /** The entries before the last add, for undo. */
+    private var undoEntries: List<CollectionEntry>? = null
 
     private val _pokedex = MutableStateFlow<PokedexUiState>(PokedexUiState.Idle)
     val pokedex: StateFlow<PokedexUiState> = _pokedex.asStateFlow()
@@ -191,13 +225,89 @@ class LookupViewModel(app: Application) : AndroidViewModel(app) {
         if (candidates.isNotEmpty()) _state.value = LookupUiState.PickCandidate(candidates, symbolRanking)
     }
 
-    private fun verdict(card: TcgCard, variant: CardVariant?, canPickOtherVariant: Boolean) = LookupUiState.Verdict(
-        card,
-        variant,
-        canPickOtherVariant = canPickOtherVariant,
-        canGoBackToCandidates = candidates.isNotEmpty(),
-        bySymbol = chosenBySymbol,
-    )
+    /** Adds one copy of the verdict's card and variant to the collection. */
+    fun addToCollection() {
+        val v = _state.value as? LookupUiState.Verdict ?: return
+        val variant = v.variant ?: return
+        if (_add.value == AddUiState.Adding || _add.value == AddUiState.Undoing) return
+        _add.value = AddUiState.Adding
+        val generation = addGeneration
+        viewModelScope.launch {
+            val outcome = CollectionWriter.addOne(getApplication(), v.card, variant)
+            if (generation != addGeneration) return@launch
+            when (outcome) {
+                is WriteOutcome.Done -> {
+                    undoEntries = outcome.before
+                    showCount(v, variant, outcome.newCount)
+                    _add.value = AddUiState.Added(outcome.newCount, canUndo = true)
+                    undoTimer?.cancel()
+                    undoTimer = launch {
+                        delay(AddUiState.UNDO_SECONDS * 1000L)
+                        (_add.value as? AddUiState.Added)?.let { _add.value = it.copy(canUndo = false) }
+                    }
+                }
+                else -> _add.value = failure(outcome)
+            }
+        }
+    }
+
+    fun undoAdd() {
+        val v = _state.value as? LookupUiState.Verdict ?: return
+        val variant = v.variant ?: return
+        val before = undoEntries ?: return
+        if ((_add.value as? AddUiState.Added)?.canUndo != true) return
+        undoTimer?.cancel()
+        _add.value = AddUiState.Undoing
+        val generation = addGeneration
+        viewModelScope.launch {
+            val outcome = CollectionWriter.restore(getApplication(), v.card, variant, before)
+            if (generation != addGeneration) return@launch
+            when (outcome) {
+                is WriteOutcome.Done -> {
+                    undoEntries = null
+                    showCount(v, variant, outcome.newCount)
+                    _add.value = AddUiState.Undone(outcome.newCount)
+                }
+                else -> _add.value = failure(outcome)
+            }
+        }
+    }
+
+    private fun failure(outcome: WriteOutcome): AddUiState = when (outcome) {
+        WriteOutcome.NotLoggedIn -> AddUiState.NotLoggedIn
+        WriteOutcome.NotApplied -> AddUiState.NotApplied
+        is WriteOutcome.Error -> AddUiState.Error(outcome.error)
+        is WriteOutcome.Done -> AddUiState.Idle
+    }
+
+    /** Shows the variant's new English count on the verdict, if the user is still looking at it. */
+    private fun showCount(v: LookupUiState.Verdict, variant: CardVariant, count: Int) {
+        val updated = variant.copy(ownedEnglish = count)
+        val card = v.card.copy(variants = v.card.variants.map { if (it.id == variant.id) updated else it })
+        val current = _state.value as? LookupUiState.Verdict ?: return
+        if (current.card.id == v.card.id && current.variant?.id == variant.id) {
+            _state.value = current.copy(card = card, variant = updated)
+        }
+    }
+
+    private fun verdict(card: TcgCard, variant: CardVariant?, canPickOtherVariant: Boolean): LookupUiState.Verdict {
+        resetAdd()
+        return LookupUiState.Verdict(
+            card,
+            variant,
+            canPickOtherVariant = canPickOtherVariant,
+            canGoBackToCandidates = candidates.isNotEmpty(),
+            bySymbol = chosenBySymbol,
+        )
+    }
+
+    /** A new verdict starts without add state. A write already sent is not cancelled, only its result is no longer shown. */
+    private fun resetAdd() {
+        addGeneration++
+        undoTimer?.cancel()
+        undoEntries = null
+        _add.value = AddUiState.Idle
+    }
 
     /** One variant: nothing to choose, go straight to the verdict. */
     private fun stateForCard(card: TcgCard): LookupUiState = when (card.variants.size) {

@@ -70,6 +70,7 @@ fun LookupScreen(onRescan: () -> Unit, onHome: () -> Unit, onLogin: () -> Unit) 
     val vm: LookupViewModel = viewModel()
     val state by vm.state.collectAsState()
     val pokedex by vm.pokedex.collectAsState()
+    val add by vm.add.collectAsState()
 
     LaunchedEffect(Unit) {
         val reading = CurrentScan.reading
@@ -161,6 +162,9 @@ fun LookupScreen(onRescan: () -> Unit, onHome: () -> Unit, onLogin: () -> Unit) 
 
                 is LookupUiState.Verdict -> VerdictContent(
                     state = s,
+                    add = add,
+                    onAdd = { vm.addToCollection() },
+                    onUndoAdd = { vm.undoAdd() },
                     pokedex = pokedex,
                     onRetryPokedex = { vm.retryPokedex() },
                     onLogin = onLogin,
@@ -185,6 +189,9 @@ private fun Centered(content: @Composable () -> Unit) {
 @Composable
 private fun VerdictContent(
     state: LookupUiState.Verdict,
+    add: AddUiState,
+    onAdd: () -> Unit,
+    onUndoAdd: () -> Unit,
     pokedex: PokedexUiState,
     onRetryPokedex: () -> Unit,
     onLogin: () -> Unit,
@@ -223,6 +230,7 @@ private fun VerdictContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        AddToCollection(variant, add, onAdd = onAdd, onUndo = onUndoAdd, onLogin = onLogin)
     }
 
     CardHeader(state.card, large = true)
@@ -247,6 +255,44 @@ private fun VerdictContent(
         onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(state.card.url))) },
         modifier = Modifier.fillMaxWidth(),
     ) { Text(stringResource(R.string.lookup_open_tcg)) }
+}
+
+/** "Hozzáadás a kollekcióhoz": one copy of the shown variant, with a short undo after it. */
+@Composable
+private fun AddToCollection(variant: CardVariant, state: AddUiState, onAdd: () -> Unit, onUndo: () -> Unit, onLogin: () -> Unit) {
+    val busy = state == AddUiState.Adding || state == AddUiState.Undoing
+    OutlinedButton(onClick = onAdd, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+        if (busy) {
+            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+            Spacer(Modifier.width(10.dp))
+        }
+        Text(stringResource(R.string.add_to_collection, variant.name))
+    }
+    val message = when (state) {
+        AddUiState.Idle, AddUiState.Adding -> null
+        is AddUiState.Added -> stringResource(R.string.add_done, state.count)
+        AddUiState.Undoing -> stringResource(R.string.add_undoing)
+        is AddUiState.Undone -> stringResource(R.string.add_undone, state.count)
+        AddUiState.NotLoggedIn -> stringResource(R.string.add_not_logged_in)
+        AddUiState.NotApplied -> stringResource(R.string.add_not_applied)
+        is AddUiState.Error -> stringResource(R.string.add_error, tcgErrorText(state.error))
+    }
+    if (message != null) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (state is AddUiState.Added || state is AddUiState.Undone) VerdictColors.Owned else MaterialTheme.colorScheme.error,
+                modifier = Modifier.weight(1f),
+            )
+            if (state is AddUiState.Added && state.canUndo) {
+                TextButton(onClick = onUndo) { Text(stringResource(R.string.add_undo)) }
+            }
+            if (state == AddUiState.NotLoggedIn) {
+                TextButton(onClick = onLogin) { Text(stringResource(R.string.login)) }
+            }
+        }
+    }
 }
 
 /** "A Pokedex listádban": the list's card(s) for the same Pokémon. */

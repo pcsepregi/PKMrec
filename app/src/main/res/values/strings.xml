@@ -5,7 +5,7 @@
 
     <!-- Home -->
     <string name="home_title_line1">Pokémon kártya</string>
-    <string name="home_title_line2">felismerő</string>
+    <string name="home_title_line2">toolbox</string>
     <string name="home_byline">PallR - %1$s</string>
     <string name="feature_recognition">Felismerés</string>
     <string name="feature_recognition_desc">Fotózd le a kártyát, és megmondom, megvan-e a gyűjteményedben.</string>
@@ -74,6 +74,14 @@
     <string name="lookup_variant_line">Változat: %1$s · angolul %2$d db</string>
     <string name="lookup_other_languages">Más nyelven megvan (%1$d db)</string>
     <string name="lookup_open_tcg">Megnyitás a TCG Collectoron</string>
+    <string name="add_to_collection">Hozzáadás a kollekcióhoz (+1 %1$s)</string>
+    <string name="add_done">Hozzáadva, most %1$d db van.</string>
+    <string name="add_undo">Visszavonás</string>
+    <string name="add_undoing">Visszavonás…</string>
+    <string name="add_undone">Visszavonva, most %1$d db van.</string>
+    <string name="add_not_logged_in">Nem vagy bejelentkezve a TCG Collectorba, a lap nem került be.</string>
+    <string name="add_not_applied">A TCG Collector válaszolt, de a lapon nem látszik a változás. Nézd meg a TCG Collectoron, és ha kell, próbáld újra.</string>
+    <string name="add_error">Nem sikerült a hozzáadás. %1$s</string>
     <string name="lookup_pokedex_title">A Pokedex listádban</string>
     <string name="lookup_pokedex_loading">Keresem a listádban…</string>
     <string name="lookup_pokedex_error">Nem sikerült megnézni a listát. %1$s</string>
@@ -119,6 +127,17 @@
     <string name="settings_names_refreshed">Névlista frissítve: %1$d Pokémon</string>
     <string name="settings_names_view">Lista megtekintése</string>
     <string name="names_title">Pokémon névlista</string>
+    <string name="settings_collection_log">Kollekció napló</string>
+    <string name="settings_collection_log_desc">Minden lap, amit az app hozzáadott a TCG Collector kollekciódhoz vagy levett róla, időponttal és a darabszámmal előtte és utána. Csak a telefonon marad meg, a legutóbbi %1$d.</string>
+    <string name="settings_collection_log_count">Bejegyzések: %1$d</string>
+    <string name="settings_collection_log_view">Napló megtekintése</string>
+    <string name="settings_collection_log_copy">Összes másolása</string>
+    <string name="settings_collection_log_copied">Kollekció napló vágólapra másolva</string>
+    <string name="settings_collection_log_clear">Törlés</string>
+    <string name="collection_log_empty">Még nincs bejegyzés.</string>
+    <string name="collection_log_add">Hozzáadva</string>
+    <string name="collection_log_undo">Visszavonva</string>
+    <string name="collection_log_remove">Levéve</string>
     <string name="names_filter">Szűrés névre vagy számra</string>
     <string name="settings_names_failed">Nem sikerült frissíteni a névlistát. %1$s</string>
 

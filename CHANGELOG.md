@@ -6,6 +6,12 @@ Release notes shown in the app's update dialog are taken from the matching secti
 
 - Enable R8 code shrinking for a smaller APK.
 
+## 1.3.0
+
+- Recognition result: new "Hozzáadás a kollekcióhoz" button adds one copy of the shown variant to your TCG Collector collection, in English and in your account's default condition. After adding, the count on the screen updates and "Visszavonás" undoes it for 6 seconds. The app reloads the card before and after every change and only says it is done when TCG Collector shows the new count. This is the first feature that changes your collection: please try it first on a cheap card.
+- Settings: new "Kollekció napló" with every card the app added (or undid), with date, set, number, variant and the count before and after. It can be viewed, copied and cleared.
+- Home screen title: "Pokémon kártya toolbox".
+
 ## 1.2.1
 
 - Sealed catalog: a new installation starts with an empty list. The starting list that came with the app is removed from the app and the repository; lists already on a phone are not changed.

@@ -49,6 +49,7 @@ import kotlinx.coroutines.withContext
 import me.csepregi.pkmrec.cardmarket.CardmarketPrices
 import me.csepregi.pkmrec.cardmarket.EurHuf
 import me.csepregi.pkmrec.diagnostics.ErrorLog
+import me.csepregi.pkmrec.collection.CollectionLog
 import me.csepregi.pkmrec.diagnostics.SlowScanLog
 import me.csepregi.pkmrec.pokedex.NameListRefreshResult
 import me.csepregi.pkmrec.pokedex.PokemonNames
@@ -70,6 +71,7 @@ fun SettingsScreen(
     onLogin: () -> Unit,
     onCardmarketDebug: () -> Unit,
     onPokemonNames: () -> Unit,
+    onCollectionLog: () -> Unit,
 ) {
     val context = LocalContext.current
     val updateState by UpdateManager.state.collectAsState()
@@ -120,6 +122,34 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.error,
                     )
                     else -> Unit
+                }
+            }
+
+            HorizontalDivider()
+
+            Section(title = stringResource(R.string.settings_collection_log)) {
+                var count by remember { mutableIntStateOf(CollectionLog.entries(context).size) }
+                Text(
+                    stringResource(R.string.settings_collection_log_desc, CollectionLog.MAX_ENTRIES),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(stringResource(R.string.settings_collection_log_count, count), style = MaterialTheme.typography.bodyLarge)
+                Button(onClick = onCollectionLog, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.settings_collection_log_view))
+                }
+                if (count > 0) {
+                    Row {
+                        TextButton(onClick = {
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            clipboard.setPrimaryClip(ClipData.newPlainText("PKMrec collection log", CollectionLog.report(context)))
+                            Toast.makeText(context, R.string.settings_collection_log_copied, Toast.LENGTH_SHORT).show()
+                        }) { Text(stringResource(R.string.settings_collection_log_copy)) }
+                        TextButton(onClick = {
+                            CollectionLog.clear(context)
+                            count = CollectionLog.entries(context).size
+                        }) { Text(stringResource(R.string.settings_collection_log_clear)) }
+                    }
                 }
             }
 

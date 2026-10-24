@@ -20,6 +20,7 @@ import me.csepregi.pkmrec.cardmarket.EurHuf
 import me.csepregi.pkmrec.tcg.TcgSession
 import me.csepregi.pkmrec.ui.CameraScreen
 import me.csepregi.pkmrec.ui.CardmarketDebugScreen
+import me.csepregi.pkmrec.ui.CollectionLogScreen
 import me.csepregi.pkmrec.ui.CurrentScan
 import me.csepregi.pkmrec.ui.HomeScreen
 import me.csepregi.pkmrec.ui.LoginScreen
@@ -118,6 +119,7 @@ class MainActivity : ComponentActivity() {
                                 onLogin = { nav.navigate(Routes.LOGIN) },
                                 onCardmarketDebug = { nav.navigate(Routes.CARDMARKET_DEBUG) },
                                 onPokemonNames = { nav.navigate(Routes.POKEMON_NAMES) },
+                                onCollectionLog = { nav.navigate(Routes.COLLECTION_LOG) },
                             )
                         }
                         composable(Routes.CARDMARKET_DEBUG) {
@@ -125,6 +127,9 @@ class MainActivity : ComponentActivity() {
                         }
                         composable(Routes.POKEMON_NAMES) {
                             PokemonNamesScreen(onBack = { nav.popBackStack() })
+                        }
+                        composable(Routes.COLLECTION_LOG) {
+                            CollectionLogScreen(onBack = { nav.popBackStack() })
                         }
                         composable(Routes.LOGIN) {
                             LoginScreen(onDone = { nav.popBackStack() })
@@ -159,6 +164,7 @@ object Routes {
     const val POKEDEX_RESULT = "pokedex/{number}"
     const val CARDMARKET_DEBUG = "cardmarket-debug"
     const val POKEMON_NAMES = "pokemon-names"
+    const val COLLECTION_LOG = "collection-log"
     const val SEALED = "sealed"
     const val SEALED_ITEM = "sealed/{id}"
 
