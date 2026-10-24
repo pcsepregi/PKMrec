@@ -7,6 +7,15 @@ Release notes shown in the app's update dialog are taken from the matching secti
 - Tests with real, anonymised TCG Collector page samples (needs saved pages from a logged-in browser).
 - Enable R8 code shrinking for a smaller APK.
 
+## 0.12.0
+
+New: debug mode for slow recognitions.
+- Settings: "Debug mód" section with a "Lassú felismerések naplózása" switch (off by default).
+- When it is on, the camera screen times each recognition attempt from the moment a card is in view: at least 2 kinds of card text in one frame (HP, weakness/resistance/retreat, ability, a card number, a Pokémon name from the name list). An attempt ends when the card is recognized, a manual entry is made, the scanner is closed, or no card has been seen for 2 seconds.
+- Attempts longer than 5 seconds are saved on the phone with how they ended, the readings seen meanwhile and the raw text report of the last frame with the card. The newest 50 are kept.
+- "Összes másolása" copies them all to the clipboard, "Törlés" clears them.
+- In debug mode a line under the live reading shows which card text the current frame has and how long the attempt has been running.
+
 ## 0.11.1
 
 - The Cardmarket price also shows the forint value, e.g. "8,04 € (≈ 2 949 Ft)". The EUR–HUF rate is the European Central Bank's daily reference rate, downloaded when the app starts (at most every 6 hours) and kept on the phone.

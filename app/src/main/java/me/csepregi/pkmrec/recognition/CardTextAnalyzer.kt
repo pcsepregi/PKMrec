@@ -32,10 +32,18 @@ import kotlin.math.roundToInt
  *
  * [loadNames] gives the Pokémon names used to tell the card name from attack and ability names;
  * it is called once, on the analysis thread.
+ *
+ * With [detectPresence] on (debug mode), each frame also reports which kinds of card text were seen
+ * (see [CardPresence]); otherwise the set is empty.
  */
 class CardTextAnalyzer(
     private val loadNames: () -> List<String> = { emptyList() },
-    private val onFrame: (reading: CardReading?, lines: List<OcrLine>, symbol: GrayImage?) -> Unit,
+    private val onFrame: (
+        reading: CardReading?,
+        lines: List<OcrLine>,
+        symbol: GrayImage?,
+        markers: Set<CardPresence.Marker>,
+    ) -> Unit,
 ) : ImageAnalysis.Analyzer, Closeable {
 
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
@@ -60,12 +68,16 @@ class CardTextAnalyzer(
 
     @Volatile var paused = false
 
+    @Volatile var detectPresence = false
+
     /** One frame at a time: frames arriving while OCR is still running are dropped. */
     @Volatile private var busy = false
 
     private fun deliver(reading: CardReading?, lines: List<OcrLine>, symbol: GrayImage? = null) {
         busy = false
-        if (!paused) onFrame(reading, lines, symbol)
+        if (paused) return
+        val markers = if (detectPresence) CardPresence.markers(lines, names) else emptySet()
+        onFrame(reading, lines, symbol, markers)
     }
 
     override fun analyze(image: ImageProxy) {

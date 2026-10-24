@@ -43,6 +43,8 @@
     <string name="camera_raw_text_title">Amit a felismerő lát (%1$d sor, * = kinagyított alsó sáv)</string>
     <string name="camera_raw_text_copy">Másolás</string>
     <string name="camera_raw_text_copied">Vágólapra másolva</string>
+    <string name="camera_debug_card">Debug: kártya látszik (%1$s) · %2$s mp</string>
+    <string name="camera_debug_no_card">Debug: nem látszik kártya (%1$s)</string>
     <string name="manual_number">Sorszám (pl. 015/128)</string>
     <string name="manual_set_code">Szettkód (nem kötelező, pl. PAL)</string>
     <string name="camera_permission_title">Kamera engedély szükséges</string>
@@ -150,6 +152,13 @@
     <string name="settings_error_log_copy">Hibanapló másolása</string>
     <string name="settings_error_log_copied">Hibanapló vágólapra másolva</string>
     <string name="settings_error_log_clear">Napló törlése</string>
+    <string name="settings_debug">Debug mód</string>
+    <string name="settings_debug_enabled">Lassú felismerések naplózása</string>
+    <string name="settings_debug_enabled_desc">Ha a kamera előtt legalább 2 kártyajel látszik (HP, gyengeség/ellenállás/visszavonulás, képesség, kártyaszám, Pokémon név), és a felismerés 5 mp-nél tovább tart, a végén elmenti az utolsó képkocka OCR riportját. A kamera képernyőn egy sor mutatja, mit talált.</string>
+    <string name="settings_debug_count">Mentett lassú felismerések: %1$d (legfeljebb %2$d)</string>
+    <string name="settings_debug_copy">Összes másolása</string>
+    <string name="settings_debug_copied">Lassú felismerések vágólapra másolva</string>
+    <string name="settings_debug_clear">Törlés</string>
 
     <!-- Errors talking to TCG Collector -->
     <string name="error_no_internet">Nincs internetkapcsolat. Ellenőrizd a wifit vagy a mobilnetet, és próbáld újra.</string>

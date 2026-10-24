@@ -45,6 +45,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.csepregi.pkmrec.cardmarket.CardmarketPrices
 import me.csepregi.pkmrec.diagnostics.ErrorLog
+import me.csepregi.pkmrec.diagnostics.SlowScanLog
 import me.csepregi.pkmrec.pokedex.NameListRefreshResult
 import me.csepregi.pkmrec.pokedex.PokemonNames
 import me.csepregi.pkmrec.tcg.PokedexList
@@ -136,6 +137,49 @@ fun SettingsScreen(
                         ErrorLog.clear()
                         count = ErrorLog.entryCount()
                     }) { Text(stringResource(R.string.settings_error_log_clear)) }
+                }
+            }
+
+            HorizontalDivider()
+
+            Section(title = stringResource(R.string.settings_debug)) {
+                var enabled by remember { mutableStateOf(SlowScanLog.isEnabled(context)) }
+                var count by remember { mutableIntStateOf(SlowScanLog.entryCount(context)) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.settings_debug_enabled), style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            stringResource(R.string.settings_debug_enabled_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = enabled,
+                        onCheckedChange = {
+                            enabled = it
+                            SlowScanLog.setEnabled(context, it)
+                        },
+                    )
+                }
+                Text(
+                    stringResource(R.string.settings_debug_count, count, SlowScanLog.MAX_ENTRIES),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Button(
+                    onClick = {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText("PKMrec slow recognitions", SlowScanLog.report(context)))
+                        Toast.makeText(context, R.string.settings_debug_copied, Toast.LENGTH_SHORT).show()
+                    },
+                    enabled = count > 0,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.settings_debug_copy)) }
+                if (count > 0) {
+                    TextButton(onClick = {
+                        SlowScanLog.clear(context)
+                        count = SlowScanLog.entryCount(context)
+                    }) { Text(stringResource(R.string.settings_debug_clear)) }
                 }
             }
 
