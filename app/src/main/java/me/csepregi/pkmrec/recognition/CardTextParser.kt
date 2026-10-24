@@ -41,6 +41,9 @@ data class CardReading(
         get() = listOfNotNull(setCode, if (total != null) "$number/$total" else number).joinToString(" ")
 }
 
+/** A reading and the OCR line its number was read from (the set symbol is printed next to it). */
+data class ParsedCard(val reading: CardReading, val numberLine: OcrLine)
+
 /**
  * Finds the set code, card number and name in OCR output of an English Pokémon card.
  *
@@ -86,7 +89,10 @@ object CardTextParser {
      * @param names when given, the name of a Pokémon card must contain a Pokémon's name; otherwise
      *   the name is left empty rather than taking an attack or ability name.
      */
-    fun parse(lines: List<OcrLine>, imageHeight: Int, names: PokemonNameFinder? = null): CardReading? {
+    fun parse(lines: List<OcrLine>, imageHeight: Int, names: PokemonNameFinder? = null): CardReading? =
+        parseWithLine(lines, imageHeight, names)?.reading
+
+    fun parseWithLine(lines: List<OcrLine>, imageHeight: Int, names: PokemonNameFinder? = null): ParsedCard? {
         val tokenized = lines.map { it to tokenize(it.text) }
         val candidates = tokenized.mapNotNull { (line, tokens) -> readNumber(line, tokens, tokenized)?.let { line to it } }
             // Only when no number with a slash was read: a number whose slash OCR dropped ("2573" = 25/73).
@@ -97,10 +103,10 @@ object CardTextParser {
         val textTop = lines.minOf { it.top }
         val textBottom = lines.maxOf { it.bottom }
         val middle = (textTop + textBottom) / 2
-        val (_, reading) = candidates.maxBy { (line, r) ->
+        val (numberLine, reading) = candidates.maxBy { (line, r) ->
             (if (line.top > middle) 2 else 0) + (if (r.setCode != null) 1 else 0)
         }
-        return reading.copy(name = findName(lines, names))
+        return ParsedCard(reading.copy(name = findName(lines, names)), numberLine)
     }
 
     /** Uppercases, removes separator noise, joins "123 / 193" and splits glued "PALEN" into "PAL EN". */

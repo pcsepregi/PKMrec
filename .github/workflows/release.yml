@@ -79,6 +79,17 @@ jobs:
           echo "::add-mask::$PASS"
           echo "SIGNING_PASSWORD_CLEAN=$PASS" >> "$GITHUB_ENV"
 
+      - uses: actions/setup-python@v5
+        if: env.SKIP != 'true'
+        with:
+          python-version: "3.12"
+
+      - name: Download set symbols
+        if: env.SKIP != 'true'
+        run: |
+          python3 -m pip install --quiet pillow
+          python3 .github/scripts/fetch-set-symbols.py app/src/main/assets/set_symbols --min 100
+
       - name: Unit tests
         if: env.SKIP != 'true'
         run: gradle --no-daemon testReleaseUnitTest -PappVersion="$VERSION" 2>&1 | tee -a build.log; exit ${PIPESTATUS[0]}

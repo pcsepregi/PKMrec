@@ -229,6 +229,13 @@ class CardTextParserTest {
     }
 
     @Test
+    fun `reports the line the number was read from`() {
+        val parsed = CardTextParser.parseWithLine(listOf(line("Illus. Nurikabe", 930), line("F 109/172", 955)), height)!!
+        assertEquals("F 109/172", parsed.numberLine.text)
+        assertEquals("109/172", parsed.reading.display)
+    }
+
+    @Test
     fun `key ignores the name`() {
         val a = CardReading("PAL", "123", "193", name = "A")
         val b = CardReading("PAL", "123", "193", name = "B")

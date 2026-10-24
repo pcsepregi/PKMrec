@@ -20,6 +20,15 @@ jobs:
         with:
           gradle-version: "8.14.3"
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download set symbols
+        run: |
+          python3 -m pip install --quiet pillow || echo "::warning::Pillow not installed, symbols are bundled unscaled"
+          python3 .github/scripts/fetch-set-symbols.py app/src/main/assets/set_symbols
+
       - name: Unit tests
         run: gradle --no-daemon testDebugUnitTest 2>&1 | tee -a build.log; exit ${PIPESTATUS[0]}
 
