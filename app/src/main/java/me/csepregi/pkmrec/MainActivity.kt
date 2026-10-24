@@ -8,7 +8,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
+import androidx.navigation.NavType
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import androidx.navigation.compose.rememberNavController
 import me.csepregi.pkmrec.tcg.TcgSession
 import me.csepregi.pkmrec.ui.CameraScreen
@@ -17,6 +19,8 @@ import me.csepregi.pkmrec.ui.HomeScreen
 import me.csepregi.pkmrec.ui.LoginScreen
 import me.csepregi.pkmrec.ui.LookupScreen
 import me.csepregi.pkmrec.ui.PkmrecTheme
+import me.csepregi.pkmrec.ui.PokedexResultScreen
+import me.csepregi.pkmrec.ui.PokedexSearchScreen
 import me.csepregi.pkmrec.ui.SettingsScreen
 import me.csepregi.pkmrec.ui.UpdateDialog
 import me.csepregi.pkmrec.update.UpdateManager
@@ -37,6 +41,23 @@ class MainActivity : ComponentActivity() {
                                 onOpenSettings = { nav.navigate(Routes.SETTINGS) },
                                 onLogin = { nav.navigate(Routes.LOGIN) },
                                 onRecognize = { nav.navigate(Routes.CAMERA) },
+                                onPokedex = { nav.navigate(Routes.POKEDEX) },
+                            )
+                        }
+                        composable(Routes.POKEDEX) {
+                            PokedexSearchScreen(
+                                onBack = { nav.popBackStack() },
+                                onPick = { nav.navigate(Routes.pokedexResult(it.number)) },
+                            )
+                        }
+                        composable(
+                            Routes.POKEDEX_RESULT,
+                            arguments = listOf(navArgument("number") { type = NavType.IntType }),
+                        ) { entry ->
+                            PokedexResultScreen(
+                                number = entry.arguments?.getInt("number") ?: 0,
+                                onBack = { nav.popBackStack() },
+                                onLogin = { nav.navigate(Routes.LOGIN) },
                             )
                         }
                         composable(Routes.CAMERA) {
@@ -89,4 +110,8 @@ object Routes {
     const val LOGIN = "login"
     const val CAMERA = "camera"
     const val LOOKUP = "lookup"
+    const val POKEDEX = "pokedex"
+    const val POKEDEX_RESULT = "pokedex/{number}"
+
+    fun pokedexResult(number: Int) = "pokedex/$number"
 }

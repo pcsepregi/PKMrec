@@ -71,14 +71,7 @@ object PokedexList {
             if (entries.isEmpty()) return@withContext PokedexLookupResult.NotAPokemon
             val listId = listId(context)
             val perPokemon = entries.map { entry ->
-                val base = "${Tcg.BASE_URL}/pokedex/${entry.number}/${entry.slug}/intl?inUserCardList=$listId"
-                val listPage = client.fetchPage("$base&displayAs=list")
-                val listState = listPage.requireAppState()
-                if (TcgUser.fromAppState(listState) == null) return@withContext PokedexLookupResult.NotLoggedIn
-                val cards = TcgSearchParser.parseListPage(listPage.html, listState)
-                val images = if (cards.isEmpty()) emptyMap() else
-                    runCatching { TcgSearchParser.parseImagePage(client.fetchPage("$base&displayAs=images").html) }.getOrDefault(emptyMap())
-                PokedexListCards(entry, cards.map { it.copy(imageUrl = images[it.id]) })
+                listCards(client, entry, listId) ?: return@withContext PokedexLookupResult.NotLoggedIn
             }
             PokedexLookupResult.Found(perPokemon)
         } catch (e: CancellationException) {
@@ -87,6 +80,42 @@ object PokedexList {
             ErrorLog.log("pokedex list", e, card.url)
             PokedexLookupResult.Error(TcgError.of(e))
         }
+    }
+
+    /**
+     * The list's card(s) for one Pokémon chosen by name (Pokédex search), each with its energy type and HP
+     * from the card page. Always [PokedexLookupResult.Found] with one entry on success.
+     */
+    suspend fun lookupPokemon(context: Context, number: Int, slug: String): PokedexLookupResult = withContext(Dispatchers.IO) {
+        val entry = PokedexEntry(number, slug, "/pokedex/$number/$slug/intl")
+        try {
+            val client = TcgSession.client(context)
+            val found = listCards(client, entry, listId(context)) ?: return@withContext PokedexLookupResult.NotLoggedIn
+            val cards = found.cards.map { card ->
+                runCatching { CardPageParser.parseDetails(client.fetchPage(card.url).html) }
+                    .onFailure { ErrorLog.log("card details", it, card.url) }
+                    .getOrNull()
+                    ?.let { card.copy(energyTypes = it.energyTypes, hp = it.hp) } ?: card
+            }
+            PokedexLookupResult.Found(listOf(found.copy(cards = cards)))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            ErrorLog.log("pokedex search", e, entry.path)
+            PokedexLookupResult.Error(TcgError.of(e))
+        }
+    }
+
+    /** The Pokédex page filtered to the list; null when the session has expired. */
+    private fun listCards(client: TcgClient, entry: PokedexEntry, listId: Int): PokedexListCards? {
+        val base = "${Tcg.BASE_URL}/pokedex/${entry.number}/${entry.slug}/intl?inUserCardList=$listId"
+        val listPage = client.fetchPage("$base&displayAs=list")
+        val listState = listPage.requireAppState()
+        if (TcgUser.fromAppState(listState) == null) return null
+        val cards = TcgSearchParser.parseListPage(listPage.html, listState)
+        val images = if (cards.isEmpty()) emptyMap() else
+            runCatching { TcgSearchParser.parseImagePage(client.fetchPage("$base&displayAs=images").html) }.getOrDefault(emptyMap())
+        return PokedexListCards(entry, cards.map { it.copy(imageUrl = images[it.id]) })
     }
 
     /** Pokédex links in the "Pokédex" footer item of a card page (several for multi-Pokémon cards). */

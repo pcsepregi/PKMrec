@@ -7,6 +7,14 @@ Release notes shown in the app's update dialog are taken from the matching secti
 - Tests with real, anonymised TCG Collector page samples (needs saved pages from a logged-in browser).
 - Enable R8 code shrinking for a smaller APK.
 
+## 0.7.0
+
+New: Pokédex search.
+- New "Pokédex" button on the home screen: type a Pokémon's name and see which card of it is in your Pokedex list.
+- Typos and Hungarian spelling are corrected while you type (e.g. "Eve" → Eevee, "Pikacsu" → Pikachu, "Csarmander" → Charmander); the Pokédex number works too (e.g. 133).
+- The result shows the card image (tap to enlarge), name, type (e.g. Fire, Psychic), HP, set, number, rarity and how many copies you own of each variant.
+- The list of Pokémon names is built into the app, so the correction works offline. Settings: "Pokémon névlista frissítése" downloads the current list from TCG Collector when a new generation comes out.
+
 ## 0.6.0
 
 Stability release.
