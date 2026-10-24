@@ -115,12 +115,33 @@
     <string name="settings_names_refresh">Pokémon névlista frissítése</string>
     <string name="settings_names_refreshing">Frissítés…</string>
     <string name="settings_names_refreshed">Névlista frissítve: %1$d Pokémon</string>
+    <string name="settings_names_view">Lista megtekintése</string>
+    <string name="names_title">Pokémon névlista</string>
+    <string name="names_filter">Szűrés névre vagy számra</string>
     <string name="settings_names_failed">Nem sikerült frissíteni a névlistát. %1$s</string>
 
-    <!-- Cardmarket price test -->
-    <string name="settings_cardmarket_probe">Cardmarket ár (próba)</string>
-    <string name="settings_cardmarket_probe_desc">Teszt a kártyaárhoz: megnyitja a Cardmarketet, és megnézi, ki tudja-e olvasni az angol, legalább Good állapotú ajánlatokat.</string>
-    <string name="settings_cardmarket_probe_open">Cardmarket próba megnyitása</string>
+    <!-- Cardmarket price -->
+    <string name="settings_cardmarket">Cardmarket ár</string>
+    <string name="settings_cardmarket_enabled">Cardmarket ár mutatása</string>
+    <string name="settings_cardmarket_enabled_desc">A kártya adatlapján megmutatja az árat: angol, legalább Good állapotú ajánlatok, a 2 legolcsóbb nélkül a következő 5 átlaga.</string>
+    <string name="settings_cardmarket_debug">Cardmarket hibakeresés</string>
+    <string name="cardmarket_title">Cardmarket ár</string>
+    <string name="cardmarket_loading">%1$s: lekérés…</string>
+    <string name="cardmarket_rule">%1$d angol ajánlat átlaga (Good vagy jobb), a 2 legolcsóbb nélkül</string>
+    <string name="cardmarket_reverse_suffix">, csak reverse holo</string>
+    <string name="cardmarket_only_offers">Csak %1$d ajánlat van.</string>
+    <string name="cardmarket_few_offers">Kevés ajánlat (%1$d): a legolcsóbb ár, csak tájékoztató.</string>
+    <string name="cardmarket_no_offers">%1$s: nincs angol, Good vagy jobb ajánlat.</string>
+    <string name="cardmarket_not_found">%1$s: nem találtam a kártyát a Cardmarketen.</string>
+    <string name="cardmarket_challenge">%1$s: a Cardmarket ellenőrzést kér.</string>
+    <string name="cardmarket_challenge_open">Cardmarket ellenőrzés</string>
+    <string name="cardmarket_check_done">Kész</string>
+    <string name="cardmarket_failed_no_internet">Nem sikerült lekérni az árat: nincs internetkapcsolat.</string>
+    <string name="cardmarket_failed_timeout">Nem sikerült lekérni az árat: a Cardmarket nem válaszolt időben.</string>
+    <string name="cardmarket_failed_site_changed">A Cardmarket megváltoztatta az oldalát, ezért az appot frissíteni kell.</string>
+    <string name="cardmarket_failed_other">Nem sikerült lekérni az árat: %1$s</string>
+    <string name="cardmarket_open">Megnyitás a Cardmarketen</string>
+    <string name="cardmarket_refresh">Frissítés</string>
 
     <!-- Error log -->
     <string name="settings_error_log">Hibanapló</string>

@@ -43,6 +43,7 @@ import me.csepregi.pkmrec.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import me.csepregi.pkmrec.cardmarket.CardmarketPrices
 import me.csepregi.pkmrec.diagnostics.ErrorLog
 import me.csepregi.pkmrec.pokedex.NameListRefreshResult
 import me.csepregi.pkmrec.pokedex.PokemonNames
@@ -54,7 +55,12 @@ import me.csepregi.pkmrec.update.UpdateManager
 import me.csepregi.pkmrec.update.UpdateState
 
 @Composable
-fun SettingsScreen(onBack: () -> Unit, onLogin: () -> Unit, onCardmarketProbe: () -> Unit) {
+fun SettingsScreen(
+    onBack: () -> Unit,
+    onLogin: () -> Unit,
+    onCardmarketDebug: () -> Unit,
+    onPokemonNames: () -> Unit,
+) {
     val context = LocalContext.current
     val updateState by UpdateManager.state.collectAsState()
     val session by TcgSession.state.collectAsState()
@@ -130,19 +136,6 @@ fun SettingsScreen(onBack: () -> Unit, onLogin: () -> Unit, onCardmarketProbe: (
                         ErrorLog.clear()
                         count = ErrorLog.entryCount()
                     }) { Text(stringResource(R.string.settings_error_log_clear)) }
-                }
-            }
-
-            HorizontalDivider()
-
-            Section(title = stringResource(R.string.settings_cardmarket_probe)) {
-                Text(
-                    stringResource(R.string.settings_cardmarket_probe_desc),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                OutlinedButton(onClick = onCardmarketProbe, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.settings_cardmarket_probe_open))
                 }
             }
 
@@ -231,6 +224,31 @@ fun SettingsScreen(onBack: () -> Unit, onLogin: () -> Unit, onCardmarketProbe: (
                 error?.let {
                     Text(stringResource(R.string.settings_names_failed, tcgErrorText(it)), color = MaterialTheme.colorScheme.error)
                 }
+                TextButton(onClick = onPokemonNames) { Text(stringResource(R.string.settings_names_view)) }
+            }
+
+            HorizontalDivider()
+
+            Section(title = stringResource(R.string.settings_cardmarket)) {
+                var enabled by remember { mutableStateOf(CardmarketPrices.isEnabled(context)) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.settings_cardmarket_enabled), style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            stringResource(R.string.settings_cardmarket_enabled_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = enabled,
+                        onCheckedChange = {
+                            enabled = it
+                            CardmarketPrices.setEnabled(context, it)
+                        },
+                    )
+                }
+                TextButton(onClick = onCardmarketDebug) { Text(stringResource(R.string.settings_cardmarket_debug)) }
             }
         }
     }

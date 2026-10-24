@@ -2,12 +2,14 @@ package me.csepregi.pkmrec.cardmarket
 
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.intOrNull
+import java.net.URLEncoder
 import java.util.Locale
 
 /** Cardmarket website constants. */
@@ -20,23 +22,29 @@ object Cardmarket {
     /** Condition filter value for "Good" (offers in Good or better condition). */
     const val MIN_CONDITION_GOOD = 4
 
-    /** Cardmarket's public daily price guide for Pokémon (game 6), one entry per product. */
-    const val PRICE_GUIDE_URL = "https://downloads.s3.cardmarket.com/productCatalog/priceGuide/price_guide_6.json"
-
-    fun searchUrl(query: String): String =
-        "$BASE_URL/en/Pokemon/Products/Search?category=-1&searchString=" + java.net.URLEncoder.encode(query.trim(), "UTF-8")
+    /** Search by name; Cardmarket ignores set codes and numbers in the search text. [page] starts at 1. */
+    fun searchUrl(query: String, page: Int = 1): String =
+        "$BASE_URL/en/Pokemon/Products/Search?category=-1&searchString=" + URLEncoder.encode(query.trim(), "UTF-8") +
+            if (page > 1) "&site=$page" else ""
 
     /** The product page with the English / Good-or-better offer filter applied. */
     fun filteredOffersUrl(productUrl: String): String {
-        val base = productUrl.substringBefore('#').substringBefore('?')
+        val base = absolute(productUrl).substringBefore('#').substringBefore('?')
         return "$base?language=$LANGUAGE_ENGLISH&minCondition=$MIN_CONDITION_GOOD"
     }
+
+    fun absolute(url: String): String = if (url.startsWith("/")) BASE_URL + url else url
 
     fun isProductPage(url: String): Boolean = url.contains("/Products/Singles/")
 }
 
 /** One offer row read from a product page. Fields are null when the row could not be read. */
-data class CardmarketOffer(val price: Double?, val condition: String?, val language: String?)
+data class CardmarketOffer(
+    val price: Double?,
+    val condition: String?,
+    val language: String?,
+    val reverseHolo: Boolean = false,
+)
 
 /** Cardmarket's condition grades, best first. */
 object CardCondition {
@@ -51,7 +59,7 @@ object CardCondition {
 data class PriceEstimate(
     /** Average of the counted offers, or null when there are not enough offers. */
     val average: Double?,
-    /** Offers left after the language / condition check, cheapest first. */
+    /** Offers left after the language / condition / reverse check, cheapest first. */
     val eligible: List<Double>,
     /** The prices that went into the average. */
     val counted: List<Double>,
@@ -70,14 +78,15 @@ object CardmarketPrice {
     }
 
     /**
-     * English offers in Good or better condition, cheapest first; skip the [SKIP_CHEAPEST] cheapest
-     * and average the next [AVERAGE_OF]. With fewer offers, the average uses what is left after
-     * skipping; with no offer left, there is no price.
+     * English offers in Good or better condition (reverse holo ones only when [reverseHolo]),
+     * cheapest first; skip the [SKIP_CHEAPEST] cheapest and average the next [AVERAGE_OF].
+     * With fewer offers, the average uses what is left after skipping; with nothing left, there is no average.
      */
-    fun estimate(offers: List<CardmarketOffer>): PriceEstimate {
+    fun estimate(offers: List<CardmarketOffer>, reverseHolo: Boolean = false): PriceEstimate {
         val eligible = offers
             .filter { it.language == null || it.language.equals("English", ignoreCase = true) }
             .filter { it.condition == null || CardCondition.isGoodOrBetter(it.condition) }
+            .filter { it.reverseHolo == reverseHolo }
             .mapNotNull { it.price }
             .sorted()
         val counted = eligible.drop(SKIP_CHEAPEST).take(AVERAGE_OF)
@@ -87,8 +96,47 @@ object CardmarketPrice {
     fun format(value: Double): String = String.format(Locale.ROOT, "%.2f €", value).replace('.', ',')
 }
 
+/** A product link on a Cardmarket page: its label (e.g. "Lechonk (OBF 209)") and href. */
+data class ProductLink(val label: String, val href: String)
+
+/** Finds the Cardmarket product of a TCG Collector card by set code and number. */
+object CardmarketMatcher {
+
+    /** "Lechonk (OBF 209)", "Pikachu (HIF 19)", "Charizard (SV-P 044)": set code and number in brackets. */
+    private val CODE_AND_NUMBER = Regex("""\(([A-Za-z0-9-]+)\s+([A-Za-z]*\d+[A-Za-z]*)\)""")
+
+    /**
+     * TCG Collector set codes that Cardmarket writes differently (TCG Collector → Cardmarket).
+     * Filled in from real reports when a set does not match.
+     */
+    private val CODE_ALIASES: Map<String, String> = emptyMap()
+
+    fun codeAndNumber(label: String): Pair<String, String>? =
+        CODE_AND_NUMBER.find(label)?.let { it.groupValues[1] to it.groupValues[2] }
+
+    /** "071" and "71" are the same number; letters ("TG05", "SV049") are kept. "209/197" → "209". */
+    fun normalizeNumber(number: String): String {
+        val n = number.substringBefore('/').trim().uppercase(Locale.ROOT)
+        val match = Regex("""^([A-Z]*)0*(\d+)([A-Z]*)$""").find(n) ?: return n
+        return match.groupValues[1] + match.groupValues[2] + match.groupValues[3]
+    }
+
+    private fun normalizeCode(code: String): String {
+        val c = code.trim().uppercase(Locale.ROOT)
+        return CODE_ALIASES[c] ?: c
+    }
+
+    fun matches(label: String, setCode: String, number: String): Boolean {
+        val (code, num) = codeAndNumber(label) ?: return false
+        return code.uppercase(Locale.ROOT) == normalizeCode(setCode) && normalizeNumber(num) == normalizeNumber(number)
+    }
+
+    fun find(links: List<ProductLink>, setCode: String, number: String): ProductLink? =
+        links.firstOrNull { Cardmarket.isProductPage(it.href) && matches(it.label, setCode, number) }
+}
+
 /** What the page extractor script saw on a Cardmarket page. */
-data class ProbePage(
+data class CardmarketPage(
     val url: String,
     val title: String,
     val challenge: Boolean,
@@ -97,19 +145,23 @@ data class ProbePage(
     val rowCount: Int,
     val offers: List<CardmarketOffer>,
     val rawOffers: List<String>,
-    val links: List<String>,
+    val links: List<ProductLink>,
     val sample: String,
 ) {
+    /** Product links on a search page, without duplicates and language switch links. */
+    val productLinks: List<ProductLink>
+        get() = links.filter { Cardmarket.isProductPage(it.href) && it.href.startsWith("/en/") }.distinctBy { it.href }
+
     companion object {
         /** evaluateJavascript returns a JSON-encoded value: a quoted JSON string from the extractor. */
-        fun fromScriptResult(result: String?): ProbePage? = runCatching {
+        fun fromScriptResult(result: String?): CardmarketPage? = runCatching {
             val outer = Json.parseToJsonElement(result ?: return null)
             val inner = (outer as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
             val o = Json.parseToJsonElement(inner).jsonObject
             fun str(key: String) = (o[key] as? JsonPrimitive)?.contentOrNull
-            fun strings(key: String) = (o[key] as? JsonArray)?.map { it.jsonPrimitive.content }.orEmpty()
             val rows = (o["offers"] as? JsonArray).orEmpty().map { it.jsonObject }
-            ProbePage(
+            val links = (o["links"] as? JsonArray).orEmpty().map { it.jsonObject }
+            CardmarketPage(
                 url = str("url").orEmpty(),
                 title = str("title").orEmpty(),
                 challenge = str("challenge") == "true",
@@ -121,10 +173,16 @@ data class ProbePage(
                         price = CardmarketPrice.parsePrice(row.text("price")),
                         condition = row.text("condition"),
                         language = row.text("language"),
+                        reverseHolo = row.text("reverse") == "true",
                     )
                 },
-                rawOffers = rows.map { row -> listOf("price", "condition", "language").joinToString(" | ") { row.text(it) ?: "?" } },
-                links = strings("links"),
+                rawOffers = rows.map { row ->
+                    listOf("price", "condition", "language", "reverse").joinToString(" | ") { row.text(it) ?: "?" }
+                },
+                links = links.mapNotNull { link ->
+                    val href = link.text("href") ?: return@mapNotNull null
+                    ProductLink(link.text("label").orEmpty().replace(Regex("""\s+"""), " ").trim(), href)
+                },
                 sample = str("sample").orEmpty(),
             )
         }.getOrNull()
@@ -133,22 +191,58 @@ data class ProbePage(
     }
 }
 
-/** Entry of Cardmarket's public price guide for one product. */
-data class PriceGuideEntry(val idProduct: Int, val fields: Map<String, String>)
-
-object PriceGuide {
-    /** Finds one product's entry in the price guide JSON without parsing the whole file. */
-    fun find(json: String, idProduct: Int): PriceGuideEntry? {
-        val start = Regex(""""idProduct"\s*:\s*$idProduct\s*[,}]""").find(json)?.range?.first ?: return null
-        val open = json.lastIndexOf('{', start)
-        val close = json.indexOf('}', start)
-        if (open < 0 || close < 0) return null
-        val obj = runCatching { Json.parseToJsonElement(json.substring(open, close + 1)).jsonObject }.getOrNull() ?: return null
-        return PriceGuideEntry(idProduct, obj.mapValues { it.value.toString().trim('"') })
+/**
+ * Reads what a Cardmarket page shows: Cloudflare challenge, product id and name, offer rows
+ * (price, condition, language, reverse holo) and product links. The first row's HTML is
+ * returned too, so selectors can be fixed from a debug report.
+ */
+const val CARDMARKET_EXTRACT_JS = """
+(function () {
+  function txt(e) { return e ? (e.innerText || e.textContent || '').trim() : ''; }
+  var langs = ['English','German','French','Italian','Spanish','Japanese','Portuguese','Korean','Chinese','S-Chinese','T-Chinese','Russian','Dutch','Polish'];
+  var conds = ['MT','NM','EX','GD','LP','PL','PO'];
+  var title = document.title || '';
+  var challenge = /just a moment|attention required|verify you are human/i.test(title) || !!document.querySelector('#challenge-form, #challenge-running, .cf-turnstile, #cf-challenge-running');
+  var html = document.documentElement.innerHTML;
+  var idm = html.match(/idProduct["'\s]*[:=]\s*["']?(\d+)/i);
+  var h1 = document.querySelector('h1');
+  var rows = document.querySelectorAll('.article-row, [id^="articleRow"]');
+  var offers = [];
+  for (var i = 0; i < rows.length && i < 60; i++) {
+    var r = rows[i];
+    var priceEl = r.querySelector('.col-offer .price-container, .price-container, .col-price');
+    var priceText = txt(priceEl);
+    if (!/€/.test(priceText)) { var m = txt(r).match(/\d[\d.]*,\d{2}\s*€/); priceText = m ? m[0] : ''; }
+    var cond = '';
+    var badges = r.querySelectorAll('.article-condition, .badge, [class*="condition"]');
+    for (var b = 0; b < badges.length && !cond; b++) { var t = txt(badges[b]).toUpperCase(); if (conds.indexOf(t) >= 0) cond = t; }
+    var lang = '';
+    var reverse = false;
+    var attrs = r.querySelectorAll('[aria-label], [title], [data-original-title], [data-bs-original-title]');
+    for (var a = 0; a < attrs.length; a++) {
+      var el = attrs[a];
+      var vals = [el.getAttribute('aria-label'), el.getAttribute('title'), el.getAttribute('data-original-title'), el.getAttribute('data-bs-original-title')];
+      for (var v = 0; v < vals.length; v++) {
+        var val = (vals[v] || '').trim();
+        if (!lang && langs.indexOf(val) >= 0) lang = val;
+        if (/^reverse( holo)?$/i.test(val)) reverse = true;
+      }
     }
+    offers.push({ price: priceText, condition: cond, language: lang, reverse: reverse ? 'true' : 'false' });
+  }
+  var links = [];
+  var as = document.querySelectorAll('a[href*="/Products/Singles/"]');
+  for (var k = 0; k < as.length && links.length < 200; k++) {
+    var label = txt(as[k]);
+    if (label) links.push({ label: label, href: as[k].getAttribute('href') });
+  }
+  var sample = rows.length ? rows[0].outerHTML : (document.body ? document.body.innerHTML : '');
+  return JSON.stringify({
+    url: location.href, title: title, challenge: challenge ? 'true' : 'false',
+    idProduct: idm ? parseInt(idm[1], 10) : null, productName: txt(h1),
+    rowCount: rows.length, offers: offers, links: links, sample: sample.substring(0, 2500)
+  });
+})();
+"""
 
-    /** Number of products in the guide, for the report. */
-    fun count(json: String): Int = Regex(""""idProduct"\s*:""").findAll(json).count()
-}
-
-private fun JsonArray?.orEmpty(): List<kotlinx.serialization.json.JsonElement> = this ?: emptyList()
+private fun JsonArray?.orEmpty(): List<JsonElement> = this ?: emptyList()

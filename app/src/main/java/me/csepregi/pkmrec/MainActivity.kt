@@ -18,7 +18,7 @@ import androidx.navigation.navArgument
 import androidx.navigation.compose.rememberNavController
 import me.csepregi.pkmrec.tcg.TcgSession
 import me.csepregi.pkmrec.ui.CameraScreen
-import me.csepregi.pkmrec.ui.CardmarketProbeScreen
+import me.csepregi.pkmrec.ui.CardmarketDebugScreen
 import me.csepregi.pkmrec.ui.CurrentScan
 import me.csepregi.pkmrec.ui.HomeScreen
 import me.csepregi.pkmrec.ui.LoginScreen
@@ -27,6 +27,7 @@ import me.csepregi.pkmrec.ui.NeonBackground
 import me.csepregi.pkmrec.ui.PkmrecTheme
 import me.csepregi.pkmrec.ui.PokedexResultScreen
 import me.csepregi.pkmrec.ui.PokedexSearchScreen
+import me.csepregi.pkmrec.ui.PokemonNamesScreen
 import me.csepregi.pkmrec.ui.SettingsScreen
 import me.csepregi.pkmrec.ui.UpdateDialog
 import me.csepregi.pkmrec.update.UpdateManager
@@ -99,11 +100,15 @@ class MainActivity : ComponentActivity() {
                             SettingsScreen(
                                 onBack = { nav.popBackStack() },
                                 onLogin = { nav.navigate(Routes.LOGIN) },
-                                onCardmarketProbe = { nav.navigate(Routes.CARDMARKET_PROBE) },
+                                onCardmarketDebug = { nav.navigate(Routes.CARDMARKET_DEBUG) },
+                                onPokemonNames = { nav.navigate(Routes.POKEMON_NAMES) },
                             )
                         }
-                        composable(Routes.CARDMARKET_PROBE) {
-                            CardmarketProbeScreen(onBack = { nav.popBackStack() })
+                        composable(Routes.CARDMARKET_DEBUG) {
+                            CardmarketDebugScreen(onBack = { nav.popBackStack() })
+                        }
+                        composable(Routes.POKEMON_NAMES) {
+                            PokemonNamesScreen(onBack = { nav.popBackStack() })
                         }
                         composable(Routes.LOGIN) {
                             LoginScreen(onDone = { nav.popBackStack() })
@@ -135,7 +140,8 @@ object Routes {
     const val LOOKUP = "lookup"
     const val POKEDEX = "pokedex"
     const val POKEDEX_RESULT = "pokedex/{number}"
-    const val CARDMARKET_PROBE = "cardmarket-probe"
+    const val CARDMARKET_DEBUG = "cardmarket-debug"
+    const val POKEMON_NAMES = "pokemon-names"
 
     fun pokedexResult(number: Int) = "pokedex/$number"
 }

@@ -228,6 +228,8 @@ private fun VerdictContent(
     CardHeader(state.card, large = true)
     if (state.bySymbol) BySymbolNote()
 
+    CardmarketPriceSection(state.card, reverseHolo = isReverseHolo(state.variant))
+
     PokedexSection(pokedex, onRetry = onRetryPokedex, onLogin = onLogin)
 
     Button(onClick = onRescan, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.camera_rescan)) }
