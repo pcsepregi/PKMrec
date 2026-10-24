@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -26,9 +27,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import me.csepregi.pkmrec.BuildConfig
@@ -36,14 +39,17 @@ import me.csepregi.pkmrec.R
 import me.csepregi.pkmrec.tcg.SessionState
 import me.csepregi.pkmrec.tcg.TcgSession
 
+/** Both feature buttons have the same height, whatever the length of their text. */
+private val FEATURE_CARD_HEIGHT = 136.dp
+
 /** One entry on the home screen. More features will be added to this list later. */
-private data class Feature(val title: Int, val description: Int, val emoji: String, val open: () -> Unit)
+private data class Feature(val title: Int, val description: Int, val icon: Int, val open: () -> Unit)
 
 @Composable
 fun HomeScreen(onOpenSettings: () -> Unit, onLogin: () -> Unit, onRecognize: () -> Unit, onPokedex: () -> Unit) {
     val features = listOf(
-        Feature(R.string.feature_recognition, R.string.feature_recognition_desc, "📷", onRecognize),
-        Feature(R.string.feature_pokedex, R.string.feature_pokedex_desc, "📕", onPokedex),
+        Feature(R.string.feature_recognition, R.string.feature_recognition_desc, R.drawable.feature_scan, onRecognize),
+        Feature(R.string.feature_pokedex, R.string.feature_pokedex_desc, R.drawable.feature_pokedex, onPokedex),
     )
     val session by TcgSession.state.collectAsState()
     val snackbar = remember { SnackbarHostState() }
@@ -98,18 +104,22 @@ fun HomeScreen(onOpenSettings: () -> Unit, onLogin: () -> Unit, onRecognize: () 
                             feature.open()
                         }
                     },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().height(FEATURE_CARD_HEIGHT),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary,
                     ),
                 ) {
                     Row(
-                        modifier = Modifier.padding(24.dp),
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(20.dp),
+                        horizontalArrangement = Arrangement.spacedBy(18.dp),
                     ) {
-                        Text(feature.emoji, style = MaterialTheme.typography.displaySmall)
+                        Image(
+                            painter = painterResource(feature.icon),
+                            contentDescription = null,
+                            modifier = Modifier.size(80.dp).clip(RoundedCornerShape(16.dp)),
+                        )
                         Column {
                             Text(
                                 text = stringResource(feature.title),
@@ -119,6 +129,8 @@ fun HomeScreen(onOpenSettings: () -> Unit, onLogin: () -> Unit, onRecognize: () 
                             Text(
                                 text = stringResource(feature.description),
                                 style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis,
                             )
                         }
                     }

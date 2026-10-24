@@ -9,7 +9,7 @@
     <string name="feature_recognition">Felismerés</string>
     <string name="feature_recognition_desc">Fotózd le a kártyát, és megmondom, megvan-e</string>
     <string name="feature_pokedex">Pokédex</string>
-    <string name="feature_pokedex_desc">Írd be egy Pokémon nevét, és megmutatom, melyik kártyája van a Pokedex listádban</string>
+    <string name="feature_pokedex_desc">Írd be a nevét, és megmutatom a kártyáját a Pokedex listádból</string>
     <string name="settings">Beállítások</string>
     <string name="coming_soon">Hamarosan érkezik</string>
 
