@@ -44,7 +44,7 @@ object SealedPrices {
      * Pause between two Cardmarket pages. Loaded back to back, Cloudflare took the refresh for a
      * robot and asked for a check every two or three products.
      */
-    private const val PAGE_GAP_MS = 4_000L
+    private const val PAGE_GAP_MS = 8_000L
 
     @Volatile private var lastPage = 0L
 
