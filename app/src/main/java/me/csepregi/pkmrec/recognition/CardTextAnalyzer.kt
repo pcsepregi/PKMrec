@@ -35,6 +35,8 @@ import kotlin.math.roundToInt
  *
  * With [detectPresence] on (debug mode), each frame also reports which kinds of card text were seen
  * (see [CardPresence]); otherwise the set is empty.
+ *
+ * A frame without a number also reports the set code and name, if both were read ([CardTextParser.codeAndName]).
  */
 class CardTextAnalyzer(
     private val loadNames: () -> List<String> = { emptyList() },
@@ -43,6 +45,7 @@ class CardTextAnalyzer(
         lines: List<OcrLine>,
         symbol: GrayImage?,
         markers: Set<CardPresence.Marker>,
+        codeOnly: CardReading?,
     ) -> Unit,
 ) : ImageAnalysis.Analyzer, Closeable {
 
@@ -77,7 +80,8 @@ class CardTextAnalyzer(
         busy = false
         if (paused) return
         val markers = if (detectPresence) CardPresence.markers(lines, names) else emptySet()
-        onFrame(reading, lines, symbol, markers)
+        val codeOnly = if (reading == null) CardTextParser.codeAndName(lines, names) else null
+        onFrame(reading, lines, symbol, markers, codeOnly)
     }
 
     override fun analyze(image: ImageProxy) {

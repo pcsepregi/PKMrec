@@ -83,6 +83,7 @@ import me.csepregi.pkmrec.diagnostics.SlowScanLog
 import me.csepregi.pkmrec.pokedex.PokemonNames
 import me.csepregi.pkmrec.recognition.CardPresence
 import me.csepregi.pkmrec.recognition.CardReading
+import me.csepregi.pkmrec.recognition.NameInSetFallback
 import me.csepregi.pkmrec.recognition.CardTextAnalyzer
 import me.csepregi.pkmrec.recognition.GrayImage
 import me.csepregi.pkmrec.recognition.OcrLine
@@ -140,6 +141,7 @@ private fun ScannerContent(onBack: () -> Unit, onRecognized: (CardReading) -> Un
     val haptics = LocalHapticFeedback.current
 
     val stabilizer = remember { ReadingStabilizer() }
+    val byNameInSet = remember { NameInSetFallback() }
     var live by remember { mutableStateOf<CardReading?>(null) }
     var confirmed by remember { mutableStateOf<CardReading?>(null) }
     var camera by remember { mutableStateOf<Camera?>(null) }
@@ -166,7 +168,7 @@ private fun ScannerContent(onBack: () -> Unit, onRecognized: (CardReading) -> Un
     }
 
     val analyzer = remember {
-        CardTextAnalyzer(loadNames = { PokemonNames.all(context).map { it.name } }) { reading, lines, symbol, markers ->
+        CardTextAnalyzer(loadNames = { PokemonNames.all(context).map { it.name } }) { reading, lines, symbol, markers, codeOnly ->
             if (confirmed != null) return@CardTextAnalyzer
             rawLines = lines
             rawSymbol = symbol?.let { "${it.width}x${it.height}" }
@@ -174,7 +176,8 @@ private fun ScannerContent(onBack: () -> Unit, onRecognized: (CardReading) -> Un
                 symbols.addLast(reading to symbol)
                 while (symbols.size > 5) symbols.removeFirst()
             }
-            val stable = stabilizer.offer(reading)
+            // No number at all but the same set code and name for a while: look the card up by name in that set.
+            val stable = stabilizer.offer(reading) ?: byNameInSet.offer(reading, codeOnly)
             live = stabilizer.current
             if (debugMode) {
                 val now = SystemClock.elapsedRealtime()
@@ -337,6 +340,7 @@ private fun ScannerContent(onBack: () -> Unit, onRecognized: (CardReading) -> Un
                     reading = result,
                     onRescan = {
                         stabilizer.reset()
+                        byNameInSet.reset()
                         live = null
                         confirmed = null
                     },

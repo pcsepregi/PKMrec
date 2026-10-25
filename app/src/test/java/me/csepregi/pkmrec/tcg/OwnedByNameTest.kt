@@ -36,4 +36,15 @@ class OwnedByNameTest {
         assertEquals(MatchResult.Single(cards[0]), CardLookup.ownedByName("Chikorita", cards, "MEG"))
         assertEquals(MatchResult.Ambiguous(cards), CardLookup.ownedByName("Chikorita", cards, "PAL"))
     }
+
+    @Test
+    fun `by name in a set, owned or not`() {
+        val cards = listOf(
+            card(1, "Pikachu at the Museum", owned = 0, code = "MEP"),
+            card(2, "Pikachu", owned = 1, code = "MEP"),
+            card(3, "Pikachu at the Museum", owned = 0, code = "SVP"),
+        )
+        assertEquals(MatchResult.Single(cards[0]), CardLookup.byNameInSet("Pikachu at the Museum", "MEP", cards))
+        assertEquals(MatchResult.NotFound, CardLookup.byNameInSet("Pikachu at the Museum", "PAL", cards))
+    }
 }

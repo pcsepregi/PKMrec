@@ -59,30 +59,60 @@ object CardLookup {
      * Finds a card by its name alone (Tömeges eladás, number unreadable): only cards the user owns
      * count, as only those can be sold, best name match first. Several owned prints → the user picks.
      */
-    suspend fun lookupOwnedByName(context: Context, name: String, setCode: String? = null): LookupOutcome = withContext(Dispatchers.IO) {
-        try {
-            val client = TcgSession.client(context)
-            val cards = mutableListOf<TcgCard>()
-            val pageOfCard = mutableMapOf<Int, Int>()
-            var page = 1
-            while (page <= MAX_PAGES) {
-                val listPage = client.fetchPage(searchUrl(name, "list", page))
-                val state = listPage.requireAppState()
-                if (TcgUser.fromAppState(state) == null) return@withContext LookupOutcome.NotLoggedIn
-                val found = TcgSearchParser.parseListPage(listPage.html, state)
-                found.forEach { pageOfCard[it.id] = page }
-                cards += found
-                val hasMore = (state["hasMultiplePages"] as? kotlinx.serialization.json.JsonPrimitive)?.content == "true"
-                if (!hasMore || found.isEmpty()) break
-                page++
+    suspend fun lookupOwnedByName(context: Context, name: String, setCode: String? = null): LookupOutcome =
+        lookupByName(context, name) { cards -> ownedByName(name, cards, setCode) }
+
+    /**
+     * Finds a card by its name in the set [setCode] (camera recognition, number unreadable, e.g. a
+     * promo shown on a screen). Owned or not; several cards of that name in the set → the user picks.
+     */
+    suspend fun lookupByNameInSet(context: Context, name: String, setCode: String): LookupOutcome =
+        lookupByName(context, name) { cards -> byNameInSet(name, setCode, cards) }
+
+    private suspend fun lookupByName(context: Context, name: String, match: (List<TcgCard>) -> MatchResult): LookupOutcome =
+        withContext(Dispatchers.IO) {
+            try {
+                val client = TcgSession.client(context)
+                val cards = mutableListOf<TcgCard>()
+                val pageOfCard = mutableMapOf<Int, Int>()
+                var page = 1
+                while (page <= MAX_PAGES) {
+                    val listPage = client.fetchPage(searchUrl(name, "list", page))
+                    val state = listPage.requireAppState()
+                    if (TcgUser.fromAppState(state) == null) return@withContext LookupOutcome.NotLoggedIn
+                    val found = TcgSearchParser.parseListPage(listPage.html, state)
+                    found.forEach { pageOfCard[it.id] = page }
+                    cards += found
+                    val hasMore = (state["hasMultiplePages"] as? kotlinx.serialization.json.JsonPrimitive)?.content == "true"
+                    if (!hasMore || found.isEmpty()) break
+                    page++
+                }
+                LookupOutcome.Found(withImages(client, name, match(cards), pageOfCard))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                ErrorLog.log("lookup by name", e, name)
+                LookupOutcome.Error(TcgError.of(e))
             }
-            LookupOutcome.Found(withImages(client, name, ownedByName(name, cards, setCode), pageOfCard))
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            ErrorLog.log("lookup by name", e, name)
-            LookupOutcome.Error(TcgError.of(e))
         }
+
+    /** The English cards of [setCode] whose name contains [name] or is close to it, best match first. */
+    internal fun byNameInSet(name: String, setCode: String, cards: List<TcgCard>): MatchResult {
+        val inSet = cards.distinctBy { it.id }
+            .filter { it.regionId == null || it.regionId == TcgIds.REGION_INTERNATIONAL }
+            .filter { it.expansionCode.equals(setCode, ignoreCase = true) || CardMatcher.codeMatchesLoosely(setCode, it.expansionCode) }
+            .filter { namesMatch(name, it.name) }
+            .sortedByDescending { CardMatcher.nameSimilarity(name, it.name) }
+        return when (inSet.size) {
+            0 -> MatchResult.NotFound
+            1 -> MatchResult.Single(inSet.first())
+            else -> MatchResult.Ambiguous(inSet)
+        }
+    }
+
+    private fun namesMatch(read: String, cardName: String): Boolean {
+        val key = read.lowercase().filter { it.isLetterOrDigit() }
+        return cardName.lowercase().filter { it.isLetterOrDigit() }.contains(key) || CardMatcher.nameSimilarity(read, cardName) >= 0.75
     }
 
     /**
@@ -90,13 +120,10 @@ object CardLookup {
      * first; only those of [setCode] when the set code was read and some match it.
      */
     internal fun ownedByName(name: String, cards: List<TcgCard>, setCode: String? = null): MatchResult {
-        val key = name.lowercase().filter { it.isLetterOrDigit() }
         val owned = cards.distinctBy { it.id }
             .filter { it.regionId == null || it.regionId == TcgIds.REGION_INTERNATIONAL }
             .filter { card -> card.variants.any { it.isOwned } }
-            .filter { card ->
-                card.name.lowercase().filter { it.isLetterOrDigit() }.contains(key) || CardMatcher.nameSimilarity(name, card.name) >= 0.75
-            }
+            .filter { card -> namesMatch(name, card.name) }
             .sortedByDescending { CardMatcher.nameSimilarity(name, it.name) }
             .let { all ->
                 if (setCode == null) all

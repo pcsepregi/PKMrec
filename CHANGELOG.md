@@ -6,6 +6,12 @@ Release notes shown in the app's update dialog are taken from the matching secti
 
 - Enable R8 code shrinking for a smaller APK.
 
+## 2.0.4
+
+- Recognition: promo numbers are read also without "EN" between the code and the number ("D SVP 209", "SVPm 209").
+- Recognition: when the set code and the card name are readable but the number is not (a tiny promo number, e.g. "Pikachu at the Museum" MEP 500 on a screen), after a few frames the card is looked up by its name in that set. One card of that name in the set → it is shown; several → you pick.
+- Tömeges eladás benefits from the promo number fix too ("DMEP O31").
+
 ## 2.0.3
 
 - Tömeges eladás: the set code is now found also when OCR glues it to the regulation mark or "EN" ("DMEG", "IMEGB", "0MEG"), so a card number finds the one card of that set instead of a list to pick from.

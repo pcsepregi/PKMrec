@@ -132,7 +132,14 @@ class LookupViewModel(app: Application) : AndroidViewModel(app) {
         val r = reading ?: return
         _state.value = LookupUiState.Searching
         viewModelScope.launch {
-            _state.value = when (val outcome = CardLookup.lookup(getApplication(), r)) {
+            val name = r.name
+            val code = r.setCode
+            val outcome = if (r.isNameOnly && name != null && code != null) {
+                CardLookup.lookupByNameInSet(getApplication(), name, code)
+            } else {
+                CardLookup.lookup(getApplication(), r)
+            }
+            _state.value = when (outcome) {
                 LookupOutcome.NotLoggedIn -> LookupUiState.NotLoggedIn
                 is LookupOutcome.Error -> LookupUiState.Error(outcome.error)
                 is LookupOutcome.Found -> when (val match = outcome.match) {

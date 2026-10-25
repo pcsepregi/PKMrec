@@ -76,6 +76,11 @@ object CardTextParser {
 
     /** Three digits ending a number part with junk before them, e.g. the set code box in "PBL#115". */
     private val PADDED_NUMBER_AT_END = Regex("""(\d{3})$""")
+    /**
+     * Promo set codes printed right before the number, read without "EN" ("D SVP 209", "SVPm 209"):
+     * the code, possibly with one stray character glued before or after it.
+     */
+    private val PROMO_CODE = Regex("""^[A-Z0-9]?(SVP|MEP)[A-Z0-9]?$""")
     private val GLUED_EN = Regex("""^([A-Z0-9]{2,4})EN$""")
     private val SET_CODE = Regex("""^[A-Z0-9]{2,4}$""")
     private val NOT_SET_CODES = setOf("EN", "HP", "EX", "GX", "VMAX", "VSTAR", "TM", "ILLUS", "THE")
@@ -168,6 +173,13 @@ object CardTextParser {
                 val mark = tokens.getOrNull(enIndex - 2)?.takeIf { REGULATION_MARK.matches(it) }?.first()
                 return CardReading(code, number, null, mark)
             }
+        }
+
+        // 2b) promo without "EN": "D SVP 209"; promo numbers are three digits
+        for (i in 0 until tokens.size - 1) {
+            val code = PROMO_CODE.matchEntire(tokens[i])?.groupValues?.get(1) ?: continue
+            val number = normalizeNumberPart(tokens[i + 1]) ?: continue
+            if (number.length == 3 && number.all { it.isDigit() }) return CardReading(code, number, null)
         }
 
         // 3) glued promo "SWSH123"
@@ -280,6 +292,20 @@ object CardTextParser {
             .mapNotNull { (other, tokens) -> codeBeforeEn(tokens)?.let { abs(other.top - line.top) to it } }
             .minByOrNull { it.first }
             ?.second
+    }
+
+    /**
+     * The set code and name of a card whose number could not be read at all (too small or blurred):
+     * a "CODE EN" anywhere, or a promo code ("MEP", "SVP"). Null without both a code and a name.
+     */
+    fun codeAndName(lines: List<OcrLine>, names: PokemonNameFinder? = null): CardReading? {
+        if (lines.isEmpty()) return null
+        val tokenized = lines.map { tokenize(it.text) }
+        val code = tokenized.firstNotNullOfOrNull { codeBeforeEn(it)?.first }
+            ?: tokenized.firstNotNullOfOrNull { tokens -> tokens.firstNotNullOfOrNull { PROMO_CODE.matchEntire(it)?.groupValues?.get(1) } }
+            ?: return null
+        val name = findName(lines, names) ?: return null
+        return CardReading(code, "", null, name = name)
     }
 
     /** The card name is the tallest mostly-letters line in the top part of the card's text area. */

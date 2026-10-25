@@ -128,8 +128,8 @@ class MultiCardLayoutTest {
         // Photo 3: two copies of Philippe; "110/01" (total cut off) is not a number.
         assertEquals(2, found[2].count { it == "Philippe|Philippe" })
         assertTrue(found[2].none { it.startsWith("110/01") })
-        // Photo 5: Zekrom with "BASIC" glued to it; "Overhead Throw" is not Throh.
-        assertTrue("Zekrom|Zekrom" in found[4])
+        // Photo 5: Zekrom ("CASIGNZekrom", "BASIC" glued to it) by its promo number "DMEP O31"; "Overhead Throw" is not Throh.
+        assertTrue("MEP 031|Zekrom" in found[4])
         assertTrue(found[4].none { it.contains("Throh") })
         assertTrue("168/132|Fighting Gong" in found[4])
     }
