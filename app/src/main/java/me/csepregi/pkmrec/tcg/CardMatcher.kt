@@ -86,6 +86,13 @@ object CardMatcher {
         return 1.0 - levenshtein(a, b).toDouble() / max(a.length, b.length)
     }
 
+    /** A name read on the card agrees with the found card's name: "Garchomp" with "Cynthia's Garchomp ex". */
+    fun namesAgree(read: String, cardName: String): Boolean =
+        simplify(cardName).contains(simplify(read)) || nameSimilarity(read, cardName) >= NAMES_AGREE
+
+    /** Below this similarity a read name and a card name are taken to be different cards. */
+    private const val NAMES_AGREE = 0.5
+
     private fun simplify(text: String) = text.lowercase().filter { it.isLetterOrDigit() }
 
     private fun levenshtein(a: String, b: String): Int {

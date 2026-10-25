@@ -219,6 +219,9 @@
     <!-- Errors talking to TCG Collector -->
     <string name="error_no_internet">Nincs internetkapcsolat. Ellenőrizd a wifit vagy a mobilnetet, és próbáld újra.</string>
     <string name="error_timeout">A TCG Collector nem válaszolt időben. Próbáld újra.</string>
+    <string name="error_blocked">A TCG Collector most nem engedi a lekérdezéseket. Nyisd meg az oldalt az appban, várd meg, amíg betölt, aztán próbáld újra.</string>
+    <string name="open_tcg_collector">TCG Collector megnyitása</string>
+    <string name="bulk_retry_failed">Sikertelenek újrakeresése</string>
     <string name="error_too_many_requests">Túl sok kérés ment rövid idő alatt a TCG Collectornak. Várj egy percet, és próbáld újra.</string>
     <string name="error_unavailable">A TCG Collector most nem elérhető (lehet, hogy karbantartás miatt). Próbáld újra később.</string>
     <string name="error_site_changed">A TCG Collector megváltoztatta az oldalát, ezért az appot frissíteni kell. Nézd meg, van-e új verzió.</string>

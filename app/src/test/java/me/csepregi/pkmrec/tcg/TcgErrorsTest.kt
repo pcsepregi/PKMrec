@@ -27,6 +27,7 @@ class TcgErrorsTest {
         assertEquals(TcgErrorKind.UNAVAILABLE, TcgError.kindOf(HttpStatusException(503)))
         assertEquals(TcgErrorKind.UNAVAILABLE, TcgError.kindOf(HttpStatusException(502)))
         assertEquals(TcgErrorKind.OTHER, TcgError.kindOf(HttpStatusException(404)))
+        assertEquals(TcgErrorKind.BLOCKED, TcgError.kindOf(HttpStatusException(403)))
     }
 
     @Test

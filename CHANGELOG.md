@@ -6,6 +6,13 @@ Release notes shown in the app's update dialog are taken from the matching secti
 
 - Enable R8 code shrinking for a smaller APK.
 
+## 2.0.5
+
+- TCG Collector refused many searches (HTTP 403) after the app sent them too quickly, mainly in Tömeges eladás. The app now waits at least a second between TCG Collector requests and retries a refused one once after 10 seconds.
+- When TCG Collector still refuses, a clear message is shown with a "TCG Collector megnyitása" button; in Tömeges eladás the remaining cards are not sent, and "Sikertelenek újrakeresése" searches the failed ones again.
+- Tömeges eladás searches the same name only once per run.
+- Camera recognition: when the number finds a card whose name differs from the name read on the card (e.g. a misread promo number), the cards of that name in the set are offered next to it to pick from.
+
 ## 2.0.4
 
 - Recognition: promo numbers are read also without "EN" between the code and the number ("D SVP 209", "SVPm 209").

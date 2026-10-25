@@ -31,6 +31,7 @@ import me.csepregi.pkmrec.tcg.PokedexList
 import me.csepregi.pkmrec.tcg.PokedexLookupResult
 import me.csepregi.pkmrec.tcg.TcgCard
 import me.csepregi.pkmrec.tcg.TcgError
+import me.csepregi.pkmrec.tcg.TcgErrorKind
 import me.csepregi.pkmrec.tcg.WriteOutcome
 import java.io.File
 import kotlin.coroutines.cancellation.CancellationException
@@ -91,11 +92,6 @@ data class BulkSellState(
 
 class BulkSellViewModel(app: Application) : AndroidViewModel(app) {
 
-    private companion object {
-        /** A name read on the photo this close to the found card's name confirms the number. */
-        const val NAME_AGREES = 0.5
-    }
-
     private val _state = MutableStateFlow(BulkSellState())
     val state: StateFlow<BulkSellState> = _state.asStateFlow()
 
@@ -155,24 +151,65 @@ class BulkSellViewModel(app: Application) : AndroidViewModel(app) {
             val rows = readings.map { SellRow(nextRowId++, it) }
             _state.update { it.copy(rows = rows, unreadablePhotos = unreadable, progress = null, ocrReport = report?.toString()) }
 
-            for (row in rows) {
-                val lookup = when (val outcome = lookup(row.reading)) {
-                    LookupOutcome.NotLoggedIn -> {
-                        _state.update { it.copy(notLoggedIn = true) }
-                        break
-                    }
-                    is LookupOutcome.Error -> SellLookup.Error(outcome.error)
-                    is LookupOutcome.Found -> when (val match = outcome.match) {
-                        MatchResult.NotFound -> SellLookup.NotFound
-                        is MatchResult.Single -> SellLookup.Found(match.card)
-                        is MatchResult.Ambiguous -> SellLookup.Pick(match.candidates)
-                    }
-                }
-                updateRow(row.id) { it.withLookup(lookup) }
-            }
+            lookUp(rows)
             _state.update { it.copy(identifying = false, identified = true) }
             markPokedexList()
         }
+    }
+
+    /** Searches the failed rows again, e.g. after TCG Collector was opened in the app. */
+    fun retryFailed() {
+        if (_state.value.identifying) return
+        val failed = _state.value.rows.filter { it.lookup is SellLookup.Error }
+        if (failed.isEmpty()) return
+        failed.forEach { row -> updateRow(row.id) { it.copy(lookup = SellLookup.Searching) } }
+        _state.update { it.copy(identifying = true, notLoggedIn = false) }
+        identifyJob = viewModelScope.launch {
+            lookUp(failed)
+            _state.update { it.copy(identifying = false) }
+            markPokedexList(failed.map { it.id })
+        }
+    }
+
+    /**
+     * Looks up [rows] one after the other. The same name is searched only once; when TCG Collector
+     * refuses the requests (403), the rest are not sent and get the same error.
+     */
+    private suspend fun lookUp(rows: List<SellRow>) {
+        byName.clear()
+        for ((index, row) in rows.withIndex()) {
+            val outcome = lookup(row.reading)
+            if (outcome == LookupOutcome.NotLoggedIn) {
+                _state.update { it.copy(notLoggedIn = true) }
+                return
+            }
+            updateRow(row.id) { it.withLookup(sellLookupOf(outcome)) }
+            if (outcome is LookupOutcome.Error && outcome.error.kind == TcgErrorKind.BLOCKED) {
+                rows.drop(index + 1).forEach { r -> updateRow(r.id) { it.withLookup(SellLookup.Error(outcome.error)) } }
+                return
+            }
+        }
+    }
+
+    private fun sellLookupOf(outcome: LookupOutcome): SellLookup = when (outcome) {
+        LookupOutcome.NotLoggedIn -> SellLookup.Searching
+        is LookupOutcome.Error -> SellLookup.Error(outcome.error)
+        is LookupOutcome.Found -> when (val match = outcome.match) {
+            MatchResult.NotFound -> SellLookup.NotFound
+            is MatchResult.Single -> SellLookup.Found(match.card)
+            is MatchResult.Ambiguous -> SellLookup.Pick(match.candidates)
+        }
+    }
+
+    /** Name searches of the current run by name and set code: "Pikachu" twice on the photos is searched once. */
+    private val byName = mutableMapOf<Pair<String, String?>, LookupOutcome>()
+
+    private suspend fun ownedByName(name: String, setCode: String?): LookupOutcome {
+        val key = name.lowercase() to setCode
+        byName[key]?.let { return it }
+        val outcome = CardLookup.lookupOwnedByName(getApplication(), name, setCode)
+        if (outcome is LookupOutcome.Found) byName[key] = outcome
+        return outcome
     }
 
     /**
@@ -182,29 +219,23 @@ class BulkSellViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun lookup(reading: CardReading): LookupOutcome {
         val app = getApplication<Application>()
         val name = reading.name?.takeIf { it.isNotBlank() }
-        if (reading.isNameOnly) return name?.let { CardLookup.lookupOwnedByName(app, it, reading.setCode) } ?: LookupOutcome.Found(MatchResult.NotFound)
+        if (reading.isNameOnly) return name?.let { ownedByName(it, reading.setCode) } ?: LookupOutcome.Found(MatchResult.NotFound)
         val outcome = CardLookup.lookup(app, reading)
         if (name == null || outcome !is LookupOutcome.Found) return outcome
         return when (val match = outcome.match) {
-            MatchResult.NotFound -> CardLookup.lookupOwnedByName(app, name, reading.setCode)
+            MatchResult.NotFound -> ownedByName(name, reading.setCode)
             // The number found a card with another name: one of the two was misread, so offer both.
-            is MatchResult.Single -> if (namesAgree(name, match.card.name)) outcome else {
-                val byName = (CardLookup.lookupOwnedByName(app, name, reading.setCode) as? LookupOutcome.Found)?.match
-                val others = when (byName) {
-                    is MatchResult.Single -> listOf(byName.card)
-                    is MatchResult.Ambiguous -> byName.candidates
+            is MatchResult.Single -> if (CardMatcher.namesAgree(name, match.card.name)) outcome else {
+                val named = (ownedByName(name, reading.setCode) as? LookupOutcome.Found)?.match
+                val others = when (named) {
+                    is MatchResult.Single -> listOf(named.card)
+                    is MatchResult.Ambiguous -> named.candidates
                     else -> emptyList()
                 }.filter { it.id != match.card.id }
                 if (others.isEmpty()) outcome else LookupOutcome.Found(MatchResult.Ambiguous(listOf(match.card) + others))
             }
             is MatchResult.Ambiguous -> outcome
         }
-    }
-
-    /** "Garchomp" read on the photo agrees with "Cynthia's Garchomp ex". */
-    private fun namesAgree(read: String, cardName: String): Boolean {
-        fun simple(t: String) = t.lowercase().filter { it.isLetterOrDigit() }
-        return simple(cardName).contains(simple(read)) || CardMatcher.nameSimilarity(read, cardName) >= NAME_AGREES
     }
 
     fun pickCandidate(rowId: Int, card: TcgCard) {

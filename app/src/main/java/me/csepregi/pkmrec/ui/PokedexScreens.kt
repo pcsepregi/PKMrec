@@ -251,6 +251,9 @@ fun PokedexResultScreen(number: Int, onBack: () -> Unit, onLogin: () -> Unit) {
                 is PokedexResultState.Error -> CenteredColumn {
                     Text(stringResource(R.string.lookup_pokedex_error, tcgErrorText(s.error)), textAlign = TextAlign.Center)
                     Button(onClick = { vm.retry() }) { Text(stringResource(R.string.retry)) }
+                    if (s.error.kind == TcgErrorKind.BLOCKED) {
+                        OutlinedButton(onClick = onLogin) { Text(stringResource(R.string.open_tcg_collector)) }
+                    }
                     if (s.error.kind == TcgErrorKind.SITE_CHANGED) {
                         val context = LocalContext.current
                         OutlinedButton(onClick = { UpdateManager.checkNow(context) }) {

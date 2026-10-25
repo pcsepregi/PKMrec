@@ -127,6 +127,14 @@ class CardSearchTest {
     }
 
     @Test
+    fun `read names agree with longer card names but not with other cards`() {
+        assertTrue(CardMatcher.namesAgree("Garchomp", "Cynthia's Garchomp ex"))
+        assertTrue(CardMatcher.namesAgree("Pikachu at", "Pikachu at the Museum"))
+        assertTrue(!CardMatcher.namesAgree("Pikachu at the Museum", "Pikachu"))
+        assertTrue(!CardMatcher.namesAgree("Wobbuffet", "Nidorina"))
+    }
+
+    @Test
     fun `glued promos are searched as printed`() {
         val (query, reading) = CardLookup.queryFor(CardReading("SWSH", "123", null))
         assertEquals("SWSH123", query)

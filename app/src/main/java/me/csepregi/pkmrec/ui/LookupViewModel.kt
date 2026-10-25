@@ -15,6 +15,7 @@ import me.csepregi.pkmrec.diagnostics.ErrorLog
 import me.csepregi.pkmrec.recognition.CardReading
 import me.csepregi.pkmrec.recognition.GrayImage
 import me.csepregi.pkmrec.tcg.CardLookup
+import me.csepregi.pkmrec.tcg.CardMatcher
 import me.csepregi.pkmrec.tcg.CardVariant
 import me.csepregi.pkmrec.tcg.CollectionEntry
 import me.csepregi.pkmrec.tcg.CollectionWriter
@@ -137,7 +138,7 @@ class LookupViewModel(app: Application) : AndroidViewModel(app) {
             val outcome = if (r.isNameOnly && name != null && code != null) {
                 CardLookup.lookupByNameInSet(getApplication(), name, code)
             } else {
-                CardLookup.lookup(getApplication(), r)
+                checkedByName(CardLookup.lookup(getApplication(), r), name, code)
             }
             _state.value = when (outcome) {
                 LookupOutcome.NotLoggedIn -> LookupUiState.NotLoggedIn
@@ -167,6 +168,22 @@ class LookupViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
         }
+    }
+
+    /**
+     * The number found a card whose name differs from the name read on the card: one of the two
+     * was misread, so the cards of that name in the set are offered next to it.
+     */
+    private suspend fun checkedByName(outcome: LookupOutcome, name: String?, code: String?): LookupOutcome {
+        val single = (outcome as? LookupOutcome.Found)?.match as? MatchResult.Single ?: return outcome
+        if (name.isNullOrBlank() || code == null || CardMatcher.namesAgree(name, single.card.name)) return outcome
+        val named = (CardLookup.lookupByNameInSet(getApplication(), name, code) as? LookupOutcome.Found)?.match
+        val others = when (named) {
+            is MatchResult.Single -> listOf(named.card)
+            is MatchResult.Ambiguous -> named.candidates
+            else -> emptyList()
+        }.filter { it.id != single.card.id }
+        return if (others.isEmpty()) outcome else LookupOutcome.Found(MatchResult.Ambiguous(listOf(single.card) + others))
     }
 
     /** Compares the set symbol seen on the card with the candidates' symbols; null if that fails. */

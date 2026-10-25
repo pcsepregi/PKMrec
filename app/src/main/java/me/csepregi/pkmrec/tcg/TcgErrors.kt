@@ -21,6 +21,9 @@ enum class TcgErrorKind {
     NO_INTERNET,
     TIMEOUT,
     TOO_MANY_REQUESTS,
+
+    /** 403: TCG Collector refuses the app's requests for now (too many in a row, or a browser check). */
+    BLOCKED,
     UNAVAILABLE,
     SITE_CHANGED,
     OTHER,
@@ -39,6 +42,7 @@ data class TcgError(val kind: TcgErrorKind, val detail: String) {
                     is MaintenanceException -> return TcgErrorKind.UNAVAILABLE
                     is HttpStatusException -> return when (cause.code) {
                         429 -> TcgErrorKind.TOO_MANY_REQUESTS
+                        403 -> TcgErrorKind.BLOCKED
                         in 500..599 -> TcgErrorKind.UNAVAILABLE
                         else -> TcgErrorKind.OTHER
                     }

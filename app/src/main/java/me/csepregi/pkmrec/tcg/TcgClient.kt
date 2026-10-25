@@ -1,5 +1,6 @@
 package me.csepregi.pkmrec.tcg
 
+import android.os.SystemClock
 import android.webkit.CookieManager
 import kotlinx.serialization.json.JsonObject
 import okhttp3.Cookie
@@ -63,12 +64,24 @@ class TcgClient(private val userAgent: String) {
         .build()
 
     fun fetchPage(url: String): TcgPage {
+        try {
+            return fetchOnce(url)
+        } catch (e: HttpStatusException) {
+            // TCG Collector refuses requests for a while after a burst; one slow retry often gets through.
+            if (e.code != 403) throw e
+            Thread.sleep(BLOCKED_RETRY_MS)
+            return fetchOnce(url)
+        }
+    }
+
+    private fun fetchOnce(url: String): TcgPage {
         val request = Request.Builder()
             .url(url)
             .header("User-Agent", userAgent)
             .header("Accept", "text/html,application/xhtml+xml")
             .header("Accept-Language", "en-US,en;q=0.9")
             .build()
+        waitTurn()
         http.newCall(request).execute().use { response ->
             if (!response.isSuccessful) throw HttpStatusException(response.code)
             val html = response.body!!.string()
@@ -91,13 +104,26 @@ class TcgClient(private val userAgent: String) {
             .header("Origin", Tcg.BASE_URL)
             .header("Referer", referer)
         headers.forEach { (name, value) -> builder.header(name, value) }
+        waitTurn()
         http.newCall(builder.build()).execute().use { response ->
             if (!response.isSuccessful) throw HttpStatusException(response.code)
             return response.body?.string().orEmpty()
         }
     }
 
+    private val turnLock = Any()
+    private var lastRequestAt = 0L
+
+    /** Keeps [MIN_REQUEST_GAP_MS] between requests from the whole app, so bulk lookups do not look like a burst. */
+    private fun waitTurn() = synchronized(turnLock) {
+        val wait = lastRequestAt + MIN_REQUEST_GAP_MS - SystemClock.elapsedRealtime()
+        if (wait > 0) Thread.sleep(wait)
+        lastRequestAt = SystemClock.elapsedRealtime()
+    }
+
     private companion object {
         val JSON = "application/json; charset=utf-8".toMediaType()
+        const val MIN_REQUEST_GAP_MS = 1_000L
+        const val BLOCKED_RETRY_MS = 10_000L
     }
 }

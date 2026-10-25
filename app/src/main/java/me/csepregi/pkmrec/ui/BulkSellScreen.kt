@@ -60,6 +60,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import me.csepregi.pkmrec.R
 import me.csepregi.pkmrec.tcg.TcgCard
+import me.csepregi.pkmrec.tcg.TcgErrorKind
 
 /** Tömeges eladás: photos of the sold cards, every card on them found, each removable from the collection. */
 @Composable
@@ -145,6 +146,14 @@ fun BulkSellScreen(onBack: () -> Unit, onLogin: () -> Unit) {
             if (state.notLoggedIn) {
                 Text(stringResource(R.string.lookup_not_logged_in), color = MaterialTheme.colorScheme.error)
                 Button(onClick = onLogin) { Text(stringResource(R.string.login)) }
+            }
+            val failed = state.rows.mapNotNull { (it.lookup as? SellLookup.Error)?.error }
+            if (!state.identifying && failed.isNotEmpty()) {
+                if (failed.any { it.kind == TcgErrorKind.BLOCKED }) {
+                    Text(stringResource(R.string.error_blocked), color = MaterialTheme.colorScheme.error)
+                    OutlinedButton(onClick = onLogin) { Text(stringResource(R.string.open_tcg_collector)) }
+                }
+                Button(onClick = { vm.retryFailed() }) { Text(stringResource(R.string.bulk_retry_failed)) }
             }
             if (state.unreadablePhotos > 0) {
                 Text(stringResource(R.string.bulk_unreadable, state.unreadablePhotos), color = MaterialTheme.colorScheme.error)
