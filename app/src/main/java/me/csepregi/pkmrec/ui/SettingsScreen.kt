@@ -72,6 +72,7 @@ fun SettingsScreen(
     onCardmarketDebug: () -> Unit,
     onPokemonNames: () -> Unit,
     onCollectionLog: () -> Unit,
+    onRequestRecorder: () -> Unit,
 ) {
     val context = LocalContext.current
     val updateState by UpdateManager.state.collectAsState()
@@ -219,6 +220,11 @@ fun SettingsScreen(
                         SlowScanLog.clear(context)
                         count = SlowScanLog.entryCount(context)
                     }) { Text(stringResource(R.string.settings_debug_clear)) }
+                }
+                if (enabled) {
+                    OutlinedButton(onClick = onRequestRecorder, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.settings_request_recorder))
+                    }
                 }
             }
 

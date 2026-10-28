@@ -215,6 +215,12 @@
     <string name="settings_debug_copy">Összes másolása</string>
     <string name="settings_debug_copied">Lassú felismerések vágólapra másolva</string>
     <string name="settings_debug_clear">Törlés</string>
+    <string name="settings_request_recorder">TCG Collector kérés-figyelő</string>
+    <string name="recorder_title">Kérés-figyelő</string>
+    <string name="recorder_hint">Csináld meg kézzel az oldalon, amit az appnak meg kell tanulnia (pl. tegyél be egy lapot a Pokedex listába, majd vedd ki). Az app felírja, milyen kéréseket küldött közben az oldal; a jelszó, tokenek és e-mail címek csillagozva vannak. Utána másold ki és küldd el.</string>
+    <string name="recorder_count">Felírt kérések: %1$d (legfeljebb %2$d)</string>
+    <string name="recorder_copy">Másolás</string>
+    <string name="recorder_copied">Kérések vágólapra másolva</string>
 
     <!-- Errors talking to TCG Collector -->
     <string name="error_no_internet">Nincs internetkapcsolat. Ellenőrizd a wifit vagy a mobilnetet, és próbáld újra.</string>

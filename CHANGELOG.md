@@ -6,6 +6,10 @@ Release notes shown in the app's update dialog are taken from the matching secti
 
 - Enable R8 code shrinking for a smaller APK.
 
+## 2.0.6
+
+- Debug mode: new "TCG Collector kérés-figyelő" in Settings. It opens TCG Collector in the app and records the requests the site sends while you do something by hand (e.g. add a card to a list), with passwords, tokens and e-mail addresses masked, ready to copy. This is the groundwork for changing the Pokedex list from the app.
+
 ## 2.0.5
 
 - TCG Collector refused many searches (HTTP 403) after the app sent them too quickly, mainly in Tömeges eladás. The app now waits at least a second between TCG Collector requests and retries a refused one once after 10 seconds.
