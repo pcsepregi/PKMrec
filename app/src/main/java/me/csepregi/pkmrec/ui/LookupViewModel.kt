@@ -21,8 +21,11 @@ import me.csepregi.pkmrec.tcg.CollectionEntry
 import me.csepregi.pkmrec.tcg.CollectionWriter
 import me.csepregi.pkmrec.tcg.LookupOutcome
 import me.csepregi.pkmrec.tcg.MatchResult
+import me.csepregi.pkmrec.tcg.ListWriteOutcome
+import me.csepregi.pkmrec.tcg.PokedexEntry
 import me.csepregi.pkmrec.tcg.PokedexList
 import me.csepregi.pkmrec.tcg.PokedexListCards
+import me.csepregi.pkmrec.tcg.PokedexListWriter
 import me.csepregi.pkmrec.tcg.PokedexLookupResult
 import me.csepregi.pkmrec.tcg.SetSymbolChoice
 import me.csepregi.pkmrec.tcg.SymbolRanking
@@ -70,13 +73,27 @@ sealed interface PokedexUiState {
     data class Loaded(val perPokemon: List<PokedexListCards>, val scannedCardId: Int) : PokedexUiState
 }
 
-/** The "Hozzáadás a kollekcióhoz" button under the verdict. */
+/** Putting the scanned card into the Pokedex list in place of the Pokémon's current card. */
+sealed interface ListSwapUiState {
+    data object Idle : ListSwapUiState
+    data class Working(val pokemonNumber: Int) : ListSwapUiState
+
+    /** [canUndo] for [AddUiState.UNDO_SECONDS] seconds after it. */
+    data class Done(val pokemonNumber: Int, val canUndo: Boolean) : ListSwapUiState
+    data class Undone(val pokemonNumber: Int) : ListSwapUiState
+    data object NotLoggedIn : ListSwapUiState
+    data object NotApplied : ListSwapUiState
+    data object OldNotRemoved : ListSwapUiState
+    data class Error(val error: TcgError) : ListSwapUiState
+}
+
+/** The "Hozzáadás a kollekcióhoz" and "Kivétel a kollekcióból" buttons under the verdict (one write at a time). */
 sealed interface AddUiState {
     data object Idle : AddUiState
     data object Adding : AddUiState
 
-    /** One copy added; [canUndo] for [UNDO_SECONDS] seconds after it. */
-    data class Added(val count: Int, val canUndo: Boolean) : AddUiState
+    /** One copy added (or [removed]); [canUndo] for [UNDO_SECONDS] seconds after it. */
+    data class Added(val count: Int, val canUndo: Boolean, val removed: Boolean = false) : AddUiState
     data object Undoing : AddUiState
     data class Undone(val count: Int) : AddUiState
     data object NotLoggedIn : AddUiState
@@ -101,6 +118,13 @@ class LookupViewModel(app: Application) : AndroidViewModel(app) {
 
     /** The entries before the last add, for undo. */
     private var undoEntries: List<CollectionEntry>? = null
+
+    private val _listSwap = MutableStateFlow<ListSwapUiState>(ListSwapUiState.Idle)
+    val listSwap: StateFlow<ListSwapUiState> = _listSwap.asStateFlow()
+    private var swapUndoTimer: Job? = null
+
+    /** What the last swap changed, for undo: the Pokémon, the card put in and the cards taken out. */
+    private var swapUndo: Triple<PokedexEntry, TcgCard, List<TcgCard>>? = null
 
     private val _pokedex = MutableStateFlow<PokedexUiState>(PokedexUiState.Idle)
     val pokedex: StateFlow<PokedexUiState> = _pokedex.asStateFlow()
@@ -218,6 +242,7 @@ class LookupViewModel(app: Application) : AndroidViewModel(app) {
         }
         val failed = _pokedex.value.let { it is PokedexUiState.Error || it == PokedexUiState.NotLoggedIn }
         if (pokedexCardId == card.id && !failed) return
+        if (pokedexCardId != card.id) resetListSwap()
         pokedexCardId = card.id
         pokedexJob?.cancel()
         _pokedex.value = PokedexUiState.Loading
@@ -250,20 +275,25 @@ class LookupViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Adds one copy of the verdict's card and variant to the collection. */
-    fun addToCollection() {
+    fun addToCollection() = write(removed = false) { card, variant -> CollectionWriter.addOne(getApplication(), card, variant) }
+
+    /** Takes one English copy of the verdict's card and variant out of the collection (after the user confirmed). */
+    fun removeFromCollection() = write(removed = true) { card, variant -> CollectionWriter.removeOne(getApplication(), card, variant) }
+
+    private fun write(removed: Boolean, call: suspend (TcgCard, CardVariant) -> WriteOutcome) {
         val v = _state.value as? LookupUiState.Verdict ?: return
         val variant = v.variant ?: return
         if (_add.value == AddUiState.Adding || _add.value == AddUiState.Undoing) return
         _add.value = AddUiState.Adding
         val generation = addGeneration
         viewModelScope.launch {
-            val outcome = CollectionWriter.addOne(getApplication(), v.card, variant)
+            val outcome = call(v.card, variant)
             if (generation != addGeneration) return@launch
             when (outcome) {
                 is WriteOutcome.Done -> {
                     undoEntries = outcome.before
                     showCount(v, variant, outcome.newCount)
-                    _add.value = AddUiState.Added(outcome.newCount, canUndo = true)
+                    _add.value = AddUiState.Added(outcome.newCount, canUndo = true, removed = removed)
                     undoTimer?.cancel()
                     undoTimer = launch {
                         delay(AddUiState.UNDO_SECONDS * 1000L)
@@ -302,6 +332,74 @@ class LookupViewModel(app: Application) : AndroidViewModel(app) {
         WriteOutcome.NotApplied, WriteOutcome.NothingToRemove -> AddUiState.NotApplied
         is WriteOutcome.Error -> AddUiState.Error(outcome.error)
         is WriteOutcome.Done -> AddUiState.Idle
+    }
+
+    /**
+     * Puts the scanned card into the Pokedex list for [entry] and takes the list's other cards
+     * of that Pokémon out. Only offered for a card in the collection (after the user confirmed).
+     */
+    fun swapIntoPokedexList(entry: PokedexEntry) {
+        val loaded = _pokedex.value as? PokedexUiState.Loaded ?: return
+        val card = currentCard()?.takeIf { it.id == loaded.scannedCardId } ?: return
+        val old = loaded.perPokemon.firstOrNull { it.entry.number == entry.number }?.cards.orEmpty().filter { it.id != card.id }
+        if (_listSwap.value is ListSwapUiState.Working) return
+        swapUndoTimer?.cancel()
+        _listSwap.value = ListSwapUiState.Working(entry.number)
+        runSwap(entry, putIn = listOf(card), takeOut = old, undo = false)
+    }
+
+    /** Puts the cards taken out back and takes the new one out again. */
+    fun undoListSwap() {
+        val (entry, added, removed) = swapUndo ?: return
+        if ((_listSwap.value as? ListSwapUiState.Done)?.canUndo != true) return
+        swapUndoTimer?.cancel()
+        _listSwap.value = ListSwapUiState.Working(entry.number)
+        runSwap(entry, putIn = removed, takeOut = listOf(added), undo = true)
+    }
+
+    private fun runSwap(entry: PokedexEntry, putIn: List<TcgCard>, takeOut: List<TcgCard>, undo: Boolean) {
+        val cardId = pokedexCardId
+        viewModelScope.launch {
+            val outcome = PokedexListWriter.change(getApplication(), entry, putIn, takeOut)
+            if (cardId != pokedexCardId) return@launch
+            _listSwap.value = when (outcome) {
+                is ListWriteOutcome.Done -> {
+                    showList(outcome.after)
+                    if (undo) {
+                        swapUndo = null
+                        ListSwapUiState.Undone(entry.number)
+                    } else {
+                        swapUndo = Triple(entry, putIn.single(), takeOut)
+                        swapUndoTimer = launch {
+                            delay(AddUiState.UNDO_SECONDS * 1000L)
+                            (_listSwap.value as? ListSwapUiState.Done)?.let { _listSwap.value = it.copy(canUndo = false) }
+                        }
+                        ListSwapUiState.Done(entry.number, canUndo = true)
+                    }
+                }
+                is ListWriteOutcome.OldNotRemoved -> {
+                    outcome.after?.let { showList(it) }
+                    ListSwapUiState.OldNotRemoved
+                }
+                ListWriteOutcome.NotLoggedIn -> ListSwapUiState.NotLoggedIn
+                ListWriteOutcome.NotApplied -> ListSwapUiState.NotApplied
+                is ListWriteOutcome.Error -> ListSwapUiState.Error(outcome.error)
+            }
+        }
+    }
+
+    /** Shows the list's cards after a write; images are kept from the earlier load where the card was already shown. */
+    private fun showList(after: PokedexListCards) {
+        val loaded = _pokedex.value as? PokedexUiState.Loaded ?: return
+        val known = loaded.perPokemon.flatMap { it.cards } + listOfNotNull(currentCard())
+        val cards = after.cards.map { c -> if (c.imageUrl != null) c else known.firstOrNull { it.id == c.id }?.let { c.copy(imageUrl = it.imageUrl) } ?: c }
+        _pokedex.value = loaded.copy(perPokemon = loaded.perPokemon.map { if (it.entry.number == after.entry.number) after.copy(cards = cards) else it })
+    }
+
+    private fun resetListSwap() {
+        swapUndoTimer?.cancel()
+        swapUndo = null
+        _listSwap.value = ListSwapUiState.Idle
     }
 
     /** Shows the variant's new English count on the verdict, if the user is still looking at it. */

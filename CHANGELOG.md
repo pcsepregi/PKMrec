@@ -6,6 +6,11 @@ Release notes shown in the app's update dialog are taken from the matching secti
 
 - Enable R8 code shrinking for a smaller APK.
 
+## 2.1.0
+
+- Card recognition result: new "Kivétel a kollekcióból" button under "Hozzáadás a kollekcióhoz". After an "are you sure?" it takes one copy of the shown variant out of your TCG Collector collection; 6 seconds to undo, recorded in the Kollekció napló.
+- "A Pokedex listádban": new "Csere a Pokedex listában" button. After a confirmation showing the card going out and the one coming in, the recognised card is put into your Pokedex list and the Pokémon's previous card is taken out (the new one goes in first, so the Pokémon is never left empty). If the Pokémon has no card in the list yet, the button is "Hozzáadás a Pokedex listához". Only cards in your collection can go into the list. Cards with several Pokémon get a button per Pokémon. 6 seconds to undo; list changes appear in the Kollekció napló too.
+
 ## 2.0.6
 
 - Debug mode: new "TCG Collector kérés-figyelő" in Settings. It opens TCG Collector in the app and records the requests the site sends while you do something by hand (e.g. add a card to a list), with passwords, tokens and e-mail addresses masked, ready to copy. This is the groundwork for changing the Pokedex list from the app.

@@ -107,7 +107,7 @@ object PokedexList {
     }
 
     /** The Pokédex page filtered to the list; null when the session has expired. */
-    private fun listCards(client: TcgClient, entry: PokedexEntry, listId: Int): PokedexListCards? {
+    internal fun listCards(client: TcgClient, entry: PokedexEntry, listId: Int): PokedexListCards? {
         val base = "${Tcg.BASE_URL}/pokedex/${entry.number}/${entry.slug}/intl?inUserCardList=$listId"
         val listPage = client.fetchPage("$base&displayAs=list")
         val listState = listPage.requireAppState()

@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -57,6 +58,8 @@ import kotlinx.coroutines.withContext
 import me.csepregi.pkmrec.R
 import me.csepregi.pkmrec.recognition.SetSymbols
 import me.csepregi.pkmrec.tcg.CardVariant
+import me.csepregi.pkmrec.tcg.PokedexEntry
+import me.csepregi.pkmrec.tcg.PokedexListCards
 import me.csepregi.pkmrec.tcg.TcgCard
 import me.csepregi.pkmrec.tcg.TcgErrorKind
 import me.csepregi.pkmrec.update.UpdateManager
@@ -71,6 +74,7 @@ fun LookupScreen(onRescan: () -> Unit, onHome: () -> Unit, onLogin: () -> Unit) 
     val state by vm.state.collectAsState()
     val pokedex by vm.pokedex.collectAsState()
     val add by vm.add.collectAsState()
+    val listSwap by vm.listSwap.collectAsState()
 
     LaunchedEffect(Unit) {
         val reading = CurrentScan.reading
@@ -168,7 +172,11 @@ fun LookupScreen(onRescan: () -> Unit, onHome: () -> Unit, onLogin: () -> Unit) 
                     add = add,
                     onAdd = { vm.addToCollection() },
                     onUndoAdd = { vm.undoAdd() },
+                    onRemove = { vm.removeFromCollection() },
                     pokedex = pokedex,
+                    listSwap = listSwap,
+                    onSwap = { vm.swapIntoPokedexList(it) },
+                    onUndoSwap = { vm.undoListSwap() },
                     onRetryPokedex = { vm.retryPokedex() },
                     onLogin = onLogin,
                     onRescan = onRescan,
@@ -195,7 +203,11 @@ private fun VerdictContent(
     add: AddUiState,
     onAdd: () -> Unit,
     onUndoAdd: () -> Unit,
+    onRemove: () -> Unit,
     pokedex: PokedexUiState,
+    listSwap: ListSwapUiState,
+    onSwap: (PokedexEntry) -> Unit,
+    onUndoSwap: () -> Unit,
     onRetryPokedex: () -> Unit,
     onLogin: () -> Unit,
     onRescan: () -> Unit,
@@ -233,7 +245,7 @@ private fun VerdictContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        AddToCollection(variant, add, onAdd = onAdd, onUndo = onUndoAdd, onLogin = onLogin)
+        AddToCollection(state.card, variant, add, onAdd = onAdd, onRemove = onRemove, onUndo = onUndoAdd, onLogin = onLogin)
     }
 
     CardHeader(state.card, large = true)
@@ -241,7 +253,17 @@ private fun VerdictContent(
 
     CardmarketPriceSection(state.card, reverseHolo = isReverseHolo(state.variant))
 
-    PokedexSection(pokedex, onRetry = onRetryPokedex, onLogin = onLogin)
+    PokedexSection(
+        pokedex,
+        scanned = state.card,
+        // Only a card already in the collection may go into the Pokedex list.
+        canSwap = state.card.variants.any { it.isOwned },
+        swap = listSwap,
+        onSwap = onSwap,
+        onUndoSwap = onUndoSwap,
+        onRetry = onRetryPokedex,
+        onLogin = onLogin,
+    )
 
     Button(onClick = onRescan, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.camera_rescan)) }
     if (state.canPickOtherVariant) {
@@ -260,10 +282,22 @@ private fun VerdictContent(
     ) { Text(stringResource(R.string.lookup_open_tcg)) }
 }
 
-/** "Hozzáadás a kollekcióhoz": one copy of the shown variant, with a short undo after it. */
+/**
+ * "Hozzáadás a kollekcióhoz" and "Kivétel a kollekcióból" (after an "are you sure?"): one copy of the
+ * shown variant, with a short undo after it.
+ */
 @Composable
-private fun AddToCollection(variant: CardVariant, state: AddUiState, onAdd: () -> Unit, onUndo: () -> Unit, onLogin: () -> Unit) {
+private fun AddToCollection(
+    card: TcgCard,
+    variant: CardVariant,
+    state: AddUiState,
+    onAdd: () -> Unit,
+    onRemove: () -> Unit,
+    onUndo: () -> Unit,
+    onLogin: () -> Unit,
+) {
     val busy = state == AddUiState.Adding || state == AddUiState.Undoing
+    var confirmRemove by remember { mutableStateOf(false) }
     OutlinedButton(onClick = onAdd, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
         if (busy) {
             CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -271,9 +305,41 @@ private fun AddToCollection(variant: CardVariant, state: AddUiState, onAdd: () -
         }
         Text(stringResource(R.string.add_to_collection, variant.name))
     }
+    OutlinedButton(
+        onClick = { confirmRemove = true },
+        enabled = !busy && variant.ownedEnglish > 0,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(stringResource(if (variant.ownedEnglish > 0) R.string.remove_from_collection else R.string.remove_nothing, variant.name))
+    }
+    if (confirmRemove) {
+        AlertDialog(
+            onDismissRequest = { confirmRemove = false },
+            title = { Text(stringResource(R.string.remove_confirm_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.remove_confirm_text,
+                        card.name,
+                        card.expansionName,
+                        card.number,
+                        variant.name,
+                        variant.ownedEnglish,
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmRemove = false
+                    onRemove()
+                }) { Text(stringResource(R.string.remove_confirm_yes)) }
+            },
+            dismissButton = { TextButton(onClick = { confirmRemove = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
     val message = when (state) {
         AddUiState.Idle, AddUiState.Adding -> null
-        is AddUiState.Added -> stringResource(R.string.add_done, state.count)
+        is AddUiState.Added -> stringResource(if (state.removed) R.string.remove_done else R.string.add_done, state.count)
         AddUiState.Undoing -> stringResource(R.string.add_undoing)
         is AddUiState.Undone -> stringResource(R.string.add_undone, state.count)
         AddUiState.NotLoggedIn -> stringResource(R.string.add_not_logged_in)
@@ -300,7 +366,16 @@ private fun AddToCollection(variant: CardVariant, state: AddUiState, onAdd: () -
 
 /** "A Pokedex listádban": the list's card(s) for the same Pokémon. */
 @Composable
-private fun PokedexSection(state: PokedexUiState, onRetry: () -> Unit, onLogin: () -> Unit) {
+private fun PokedexSection(
+    state: PokedexUiState,
+    scanned: TcgCard,
+    canSwap: Boolean,
+    swap: ListSwapUiState,
+    onSwap: (PokedexEntry) -> Unit,
+    onUndoSwap: () -> Unit,
+    onRetry: () -> Unit,
+    onLogin: () -> Unit,
+) {
     if (state == PokedexUiState.Idle || state == PokedexUiState.NotAPokemon) return
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -343,8 +418,106 @@ private fun PokedexSection(state: PokedexUiState, onRetry: () -> Unit, onLogin: 
                             )
                         }
                     }
+                    if (scanned.id == state.scannedCardId) {
+                        ListSwap(entry, scanned, canSwap, swap, onSwap = onSwap, onUndo = onUndoSwap, onLogin = onLogin)
+                    }
                 }
                 else -> Unit
+            }
+        }
+    }
+}
+
+/**
+ * "Csere a Pokedex listában" (or "Hozzáadás a Pokedex listához" when the Pokémon has no card there yet)
+ * for one Pokémon of the scanned card, with an "are you sure?" and a short undo after it.
+ */
+@Composable
+private fun ListSwap(
+    entry: PokedexListCards,
+    scanned: TcgCard,
+    canSwap: Boolean,
+    state: ListSwapUiState,
+    onSwap: (PokedexEntry) -> Unit,
+    onUndo: () -> Unit,
+    onLogin: () -> Unit,
+) {
+    val number = entry.entry.number
+    val inList = entry.cards.any { it.id == scanned.id }
+    val old = entry.cards.filter { it.id != scanned.id }
+    val busy = state is ListSwapUiState.Working
+    var confirm by remember { mutableStateOf(false) }
+
+    if (!inList) {
+        OutlinedButton(onClick = { confirm = true }, enabled = canSwap && !busy, modifier = Modifier.fillMaxWidth()) {
+            if ((state as? ListSwapUiState.Working)?.pokemonNumber == number) {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(10.dp))
+            }
+            Text(stringResource(if (old.isEmpty()) R.string.list_add else R.string.list_swap))
+        }
+        if (!canSwap) {
+            Text(
+                stringResource(R.string.list_swap_not_owned),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+    if (confirm) {
+        AlertDialog(
+            onDismissRequest = { confirm = false },
+            title = { Text(stringResource(if (old.isEmpty()) R.string.list_add_confirm_title else R.string.list_swap_confirm_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (old.isNotEmpty()) {
+                        Text(stringResource(R.string.list_swap_out), fontWeight = FontWeight.SemiBold)
+                        old.forEach { CardHeader(it) }
+                    }
+                    Text(stringResource(R.string.list_swap_in), fontWeight = FontWeight.SemiBold)
+                    CardHeader(scanned)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirm = false
+                    onSwap(entry.entry)
+                }) { Text(stringResource(if (old.isEmpty()) R.string.list_add_yes else R.string.list_swap_yes)) }
+            },
+            dismissButton = { TextButton(onClick = { confirm = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+
+    // Results belong to the Pokémon they were made for (a card can show several).
+    val forThis = when (state) {
+        is ListSwapUiState.Working -> false
+        is ListSwapUiState.Done -> state.pokemonNumber == number
+        is ListSwapUiState.Undone -> state.pokemonNumber == number
+        else -> true
+    }
+    val message = if (!forThis) null else when (state) {
+        ListSwapUiState.Idle, is ListSwapUiState.Working -> null
+        is ListSwapUiState.Done -> stringResource(R.string.list_swap_done)
+        is ListSwapUiState.Undone -> stringResource(R.string.list_swap_undone)
+        ListSwapUiState.NotLoggedIn -> stringResource(R.string.add_not_logged_in)
+        ListSwapUiState.NotApplied -> stringResource(R.string.list_swap_not_applied)
+        ListSwapUiState.OldNotRemoved -> stringResource(R.string.list_swap_old_not_removed)
+        is ListSwapUiState.Error -> stringResource(R.string.list_swap_error, tcgErrorText(state.error))
+    }
+    if (message != null) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            val ok = state is ListSwapUiState.Done || state is ListSwapUiState.Undone
+            Text(
+                message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (ok) VerdictColors.Owned else MaterialTheme.colorScheme.error,
+                modifier = Modifier.weight(1f),
+            )
+            if (state is ListSwapUiState.Done && state.canUndo) {
+                TextButton(onClick = onUndo) { Text(stringResource(R.string.add_undo)) }
+            }
+            if (state == ListSwapUiState.NotLoggedIn) {
+                TextButton(onClick = onLogin) { Text(stringResource(R.string.login)) }
             }
         }
     }

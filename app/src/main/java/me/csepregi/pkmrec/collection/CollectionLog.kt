@@ -9,7 +9,8 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 /**
- * Every change the app made to the TCG Collector collection (add, undo, later remove),
+ * Every change the app made to the TCG Collector collection (add, undo, remove) and to the
+ * Pokedex list (list-add, list-remove: before/after = 0 or 1),
  * kept only on the phone, newest [MAX_ENTRIES]. One tab-separated line per change.
  */
 object CollectionLog {
@@ -21,7 +22,7 @@ object CollectionLog {
 
     data class Entry(
         val time: String,
-        /** "add", "undo" or "remove". */
+        /** "add", "undo", "remove", "list-add" or "list-remove". */
         val action: String,
         val cardId: Int,
         val name: String,

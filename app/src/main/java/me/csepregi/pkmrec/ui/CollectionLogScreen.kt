@@ -70,5 +70,7 @@ private fun actionLabel(action: String): String = when (action) {
     "add" -> stringResource(R.string.collection_log_add)
     "undo" -> stringResource(R.string.collection_log_undo)
     "remove" -> stringResource(R.string.collection_log_remove)
+    "list-add" -> stringResource(R.string.collection_log_list_add)
+    "list-remove" -> stringResource(R.string.collection_log_list_remove)
     else -> action
 }

@@ -112,6 +112,26 @@
     <string name="add_not_logged_in">Nem vagy bejelentkezve a TCG Collectorba, a lap nem került be.</string>
     <string name="add_not_applied">A TCG Collector válaszolt, de a lapon nem látszik a változás. Nézd meg a TCG Collectoron, és ha kell, próbáld újra.</string>
     <string name="add_error">Nem sikerült a hozzáadás. %1$s</string>
+    <string name="remove_from_collection">Kivétel a kollekcióból (−1 %1$s)</string>
+    <string name="remove_nothing">Nincs a kollekcióban (%1$s)</string>
+    <string name="remove_confirm_title">Biztosan kiveszed?</string>
+    <string name="remove_confirm_text">1 db-ot veszel ki a kollekciódból: %1$s · %2$s · %3$s · %4$s. Most %5$d db van.</string>
+    <string name="remove_confirm_yes">Kivétel</string>
+    <string name="remove_done">Kivéve, most %1$d db van.</string>
+    <string name="list_swap">Csere a Pokedex listában</string>
+    <string name="list_add">Hozzáadás a Pokedex listához</string>
+    <string name="list_swap_not_owned">Csak olyan lap kerülhet a listába, ami megvan a kollekciódban.</string>
+    <string name="list_swap_confirm_title">Lecseréled a listában?</string>
+    <string name="list_add_confirm_title">Beteszed a listába?</string>
+    <string name="list_swap_out">Kikerül:</string>
+    <string name="list_swap_in">Bekerül:</string>
+    <string name="list_swap_yes">Csere</string>
+    <string name="list_add_yes">Hozzáadás</string>
+    <string name="list_swap_done">Kész, ez a lap van most a Pokedex listádban.</string>
+    <string name="list_swap_undone">Visszavonva, a lista olyan, mint előtte.</string>
+    <string name="list_swap_not_applied">A TCG Collector válaszolt, de a listán nem látszik a változás. Nézd meg a TCG Collectoron.</string>
+    <string name="list_swap_old_not_removed">Az új lap bekerült, de a régit nem sikerült kivenni. Vedd ki kézzel a TCG Collectoron.</string>
+    <string name="list_swap_error">Nem sikerült a lista módosítása. %1$s</string>
     <string name="lookup_pokedex_title">A Pokedex listádban</string>
     <string name="lookup_pokedex_loading">Keresem a listádban…</string>
     <string name="lookup_pokedex_error">Nem sikerült megnézni a listát. %1$s</string>
@@ -172,6 +192,8 @@
     <string name="collection_log_add">Hozzáadva</string>
     <string name="collection_log_undo">Visszavonva</string>
     <string name="collection_log_remove">Levéve</string>
+    <string name="collection_log_list_add">Pokedex listába</string>
+    <string name="collection_log_list_remove">Pokedex listából ki</string>
     <string name="names_filter">Szűrés névre vagy számra</string>
     <string name="settings_names_failed">Nem sikerült frissíteni a névlistát. %1$s</string>
 
