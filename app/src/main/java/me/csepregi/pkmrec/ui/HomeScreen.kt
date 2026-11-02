@@ -28,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -35,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -42,6 +44,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import me.csepregi.pkmrec.BuildConfig
 import me.csepregi.pkmrec.R
+import me.csepregi.pkmrec.collection.TempList
 import me.csepregi.pkmrec.tcg.SessionState
 import me.csepregi.pkmrec.tcg.TcgSession
 
@@ -65,7 +68,7 @@ private data class Feature(
 )
 
 @Composable
-fun HomeScreen(onOpenSettings: () -> Unit, onLogin: () -> Unit, onRecognize: () -> Unit, onPokedex: () -> Unit, onSealed: () -> Unit, onBulkSell: () -> Unit) {
+fun HomeScreen(onOpenSettings: () -> Unit, onLogin: () -> Unit, onRecognize: () -> Unit, onPokedex: () -> Unit, onSealed: () -> Unit, onBulkSell: () -> Unit, onTempList: () -> Unit) {
     val features = listOf(
         Feature(R.string.feature_recognition, R.string.feature_recognition_desc, R.drawable.feature_scan, Neon.GlowSoft, open = onRecognize),
         Feature(R.string.feature_pokedex, R.string.feature_pokedex_desc, R.drawable.feature_pokedex, Neon.Purple, open = onPokedex),
@@ -73,6 +76,9 @@ fun HomeScreen(onOpenSettings: () -> Unit, onLogin: () -> Unit, onRecognize: () 
         Feature(R.string.feature_bulk_sell, R.string.feature_bulk_sell_desc, R.drawable.feature_bulk_sell, Neon.Purple, open = onBulkSell),
     )
     val session by TcgSession.state.collectAsState()
+    val context = LocalContext.current
+    val tempList by TempList.items.collectAsState()
+    LaunchedEffect(Unit) { TempList.load(context) }
 
     Scaffold { padding ->
         Column(
@@ -84,6 +90,7 @@ fun HomeScreen(onOpenSettings: () -> Unit, onLogin: () -> Unit, onRecognize: () 
         ) {
             Header(onOpenSettings)
             SessionStatus(state = session, onLogin = onLogin)
+            if (tempList.isNotEmpty()) TempListStrip(tempList.size, onClick = onTempList)
             features.forEach { feature ->
                 FeatureButton(
                     feature,
@@ -92,6 +99,31 @@ fun HomeScreen(onOpenSettings: () -> Unit, onLogin: () -> Unit, onRecognize: () 
                 )
             }
         }
+    }
+}
+
+/** "Ideiglenes lista · N lap": only shown while the temporary list has cards. */
+@Composable
+private fun TempListStrip(count: Int, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(14.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Neon.SurfaceHigh)
+            .border(1.dp, Neon.Glow.copy(alpha = 0.7f), shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            stringResource(R.string.temp_list_home, count),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = Neon.Text,
+            modifier = Modifier.weight(1f),
+        )
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = Neon.Glow)
     }
 }
 

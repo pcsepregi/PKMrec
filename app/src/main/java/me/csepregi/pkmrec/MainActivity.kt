@@ -1,21 +1,21 @@
 package me.csepregi.pkmrec
 
-import android.os.Bundle
 import android.graphics.Color
+import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
-import androidx.navigation.compose.NavHost
 import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.navArgument
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import me.csepregi.pkmrec.cardmarket.EurHuf
 import me.csepregi.pkmrec.tcg.TcgSession
 import me.csepregi.pkmrec.ui.BulkSellScreen
@@ -35,6 +35,7 @@ import me.csepregi.pkmrec.ui.RequestRecorderScreen
 import me.csepregi.pkmrec.ui.SealedCatalogScreen
 import me.csepregi.pkmrec.ui.SealedItemScreen
 import me.csepregi.pkmrec.ui.SettingsScreen
+import me.csepregi.pkmrec.ui.TempListScreen
 import me.csepregi.pkmrec.ui.UpdateDialog
 import me.csepregi.pkmrec.update.UpdateManager
 import me.csepregi.pkmrec.update.UpdateState
@@ -70,6 +71,7 @@ class MainActivity : ComponentActivity() {
                                 onPokedex = { nav.navigate(Routes.POKEDEX) },
                                 onSealed = { nav.navigate(Routes.SEALED) },
                                 onBulkSell = { nav.navigate(Routes.BULK_SELL) },
+                                onTempList = { nav.navigate(Routes.TEMP_LIST) },
                             )
                         }
                         composable(Routes.SEALED) {
@@ -135,6 +137,9 @@ class MainActivity : ComponentActivity() {
                         composable(Routes.BULK_SELL) {
                             BulkSellScreen(onBack = { nav.popBackStack() }, onLogin = { nav.navigate(Routes.LOGIN) })
                         }
+                        composable(Routes.TEMP_LIST) {
+                            TempListScreen(onBack = { nav.popBackStack() }, onLogin = { nav.navigate(Routes.LOGIN) })
+                        }
                         composable(Routes.COLLECTION_LOG) {
                             CollectionLogScreen(onBack = { nav.popBackStack() })
                         }
@@ -177,6 +182,7 @@ object Routes {
     const val COLLECTION_LOG = "collection-log"
     const val REQUEST_RECORDER = "request-recorder"
     const val BULK_SELL = "bulk-sell"
+    const val TEMP_LIST = "temp-list"
     const val SEALED = "sealed"
     const val SEALED_ITEM = "sealed/{id}"
 

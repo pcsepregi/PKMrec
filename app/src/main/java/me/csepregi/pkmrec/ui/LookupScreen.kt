@@ -37,6 +37,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,8 +55,10 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.csepregi.pkmrec.R
+import me.csepregi.pkmrec.collection.TempList
 import me.csepregi.pkmrec.recognition.SetSymbols
 import me.csepregi.pkmrec.tcg.CardVariant
 import me.csepregi.pkmrec.tcg.PokedexEntry
@@ -246,6 +249,7 @@ private fun VerdictContent(
             )
         }
         AddToCollection(state.card, variant, add, onAdd = onAdd, onRemove = onRemove, onUndo = onUndoAdd, onLogin = onLogin)
+        AddToTempList(state.card, variant)
     }
 
     CardHeader(state.card, large = true)
@@ -361,6 +365,26 @@ private fun AddToCollection(
                 TextButton(onClick = onLogin) { Text(stringResource(R.string.login)) }
             }
         }
+    }
+}
+
+/** "Ideiglenes listához adás": puts the card and the shown variant on the temporary list (only on the phone). */
+@Composable
+private fun AddToTempList(card: TcgCard, variant: CardVariant) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var listSize by remember(card.id, variant.id) { mutableStateOf<Int?>(null) }
+    OutlinedButton(
+        onClick = {
+            scope.launch {
+                TempList.add(context, card, variant)
+                listSize = TempList.items.value.size
+            }
+        },
+        modifier = Modifier.fillMaxWidth(),
+    ) { Text(stringResource(R.string.temp_list_add, variant.name)) }
+    listSize?.let {
+        Text(stringResource(R.string.temp_list_added, it), style = MaterialTheme.typography.bodyMedium, color = VerdictColors.Owned)
     }
 }
 

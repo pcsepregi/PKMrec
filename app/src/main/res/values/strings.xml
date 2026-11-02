@@ -348,4 +348,27 @@
     <string name="settings_sealed_import_text">Lecseréljem a mostani listát a fájlban lévőre, vagy adjam hozzá a darabszámokat?</string>
     <string name="settings_sealed_import_replace">Lecserélés</string>
     <string name="settings_sealed_import_merge">Hozzáadás</string>
+    <string name="temp_list_add">Ideiglenes listához adás (%1$s)</string>
+    <string name="temp_list_added">Az ideiglenes listára tettem, most %1$d lap van rajta.</string>
+    <string name="temp_list_title">Ideiglenes lista</string>
+    <string name="temp_list_home">Ideiglenes lista · %1$d lap</string>
+    <string name="temp_list_empty">Az ideiglenes lista üres. A Felismerésnél az „Ideiglenes listához adás” gombbal tehetsz rá lapot.</string>
+    <string name="temp_list_clear_all">Mindet törli</string>
+    <string name="temp_list_add_all">Mindet a gyűjteménybe</string>
+    <string name="temp_list_clear_confirm_title">Törlöd az ideiglenes listát?</string>
+    <string name="temp_list_clear_confirm_text">Mind a(z) %1$d lap lekerül a listáról. A TCG Collectoron nem változik semmi.</string>
+    <string name="temp_list_clear_yes">Törlés</string>
+    <string name="temp_list_add_all_confirm_title">Mindet hozzáadod?</string>
+    <string name="temp_list_add_all_confirm_text">%1$d lap kerül a TCG Collector gyűjteményedbe, mindegyikből 1 db, a listán látható változatban. Ez lapként pár másodperc; ami bekerült, lekerül a listáról.</string>
+    <string name="temp_list_add_all_yes">Hozzáadás</string>
+    <string name="temp_list_row_add">Hozzáad</string>
+    <string name="temp_list_row_delete">Töröl</string>
+    <string name="temp_list_row_failed">Nem sikerült: %1$s</string>
+    <string name="temp_list_bulk_progress">Hozzáadás: %1$d / %2$d</string>
+    <string name="temp_list_bulk_cancel">Leállítás</string>
+    <string name="temp_list_bulk_done">Kész: %1$d lap hozzáadva, %2$d nem sikerült.</string>
+    <string name="temp_list_bulk_cancelled">Leállítva: %1$d lap hozzáadva, %2$d nem sikerült.</string>
+    <string name="temp_list_bulk_stopped">Megálltam, mert: %1$s</string>
+    <string name="temp_list_recent_added">%1$s (%2$s) bekerült, most %3$d db van.</string>
+    <string name="temp_list_recent_undo_failed">A visszavonás nem sikerült. %1$s</string>
 </resources>
