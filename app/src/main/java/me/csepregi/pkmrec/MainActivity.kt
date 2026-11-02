@@ -16,6 +16,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import me.csepregi.pkmrec.cardmarket.CardmarketFetcher
 import me.csepregi.pkmrec.cardmarket.EurHuf
 import me.csepregi.pkmrec.tcg.TcgSession
 import me.csepregi.pkmrec.ui.BulkSellScreen
@@ -157,6 +158,12 @@ class MainActivity : ComponentActivity() {
         UpdateManager.checkOnStart(this)
         TcgSession.refresh(this)
         EurHuf.refresh(this)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Stop the hidden Cardmarket page's scripts while the app is not in use.
+        CardmarketFetcher.release()
     }
 
     override fun onResume() {
