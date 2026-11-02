@@ -7,6 +7,7 @@ import android.graphics.ColorMatrixColorFilter
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.RectF
+import android.os.SystemClock
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import com.google.mlkit.vision.common.InputImage
@@ -76,7 +77,11 @@ class CardTextAnalyzer(
     /** One frame at a time: frames arriving while OCR is still running are dropped. */
     @Volatile private var busy = false
 
+    /** A few frames a second instead of back to back: the camera screen used most of the app's battery. */
+    private val pacer = FramePacer()
+
     private fun deliver(reading: CardReading?, lines: List<OcrLine>, symbol: GrayImage? = null) {
+        pacer.finished(cardText = reading != null || lines.any { isNumberLike(it.text) })
         busy = false
         if (paused) return
         val markers = if (detectPresence) CardPresence.markers(lines, names) else emptySet()
@@ -86,7 +91,7 @@ class CardTextAnalyzer(
 
     override fun analyze(image: ImageProxy) {
         val media = image.image
-        if (paused || busy || media == null) {
+        if (paused || busy || media == null || !pacer.tryStart(SystemClock.elapsedRealtime())) {
             image.close()
             return
         }

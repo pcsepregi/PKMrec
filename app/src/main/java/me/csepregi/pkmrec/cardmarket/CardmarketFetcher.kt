@@ -47,6 +47,8 @@ object CardmarketFetcher {
     private val mutex = Mutex()
     private var webView: WebView? = null
 
+    private const val BLANK = "about:blank"
+
     private val _challenge = MutableStateFlow(false)
 
     /** A Cloudflare check is showing in the WebView right now: a screen may show it to be ticked. */
@@ -101,6 +103,17 @@ object CardmarketFetcher {
         webView = this
     }
 
+    /**
+     * Unloads the last Cardmarket page when the app goes to the background, so its scripts do not
+     * keep running there. Not while a page is being read (e.g. a sealed price round), nor while a
+     * Cloudflare check waits to be ticked. Main thread only.
+     */
+    fun release() {
+        val view = webView ?: return
+        if (mutex.isLocked || _challenge.value) return
+        view.loadUrl(BLANK)
+    }
+
     private sealed interface Step<out T> {
         data class Done<T>(val value: T) : Step<T>
         data class Fail(val error: Exception) : Step<Nothing>
@@ -124,6 +137,9 @@ object CardmarketFetcher {
                 _challenge.value = false
                 main.removeCallbacksAndMessages(view)
                 view.webViewClient = WebViewClient()
+                // The page read is not needed any more: unload it so its scripts stop, unless a
+                // Cloudflare check on it is waiting for the user, or someone is looking at it.
+                if (!challenged && !view.isShown) view.loadUrl(BLANK)
                 if (cont.isActive) result.fold({ cont.resume(it) }, { cont.resumeWithException(it) })
             }
 
@@ -156,7 +172,11 @@ object CardmarketFetcher {
             }
 
             view.webViewClient = object : WebViewClient() {
-                override fun onPageFinished(view: WebView, pageUrl: String?) = evaluate()
+                override fun onPageFinished(view: WebView, pageUrl: String?) {
+                    // The blank page loaded after the previous read may finish after this load started.
+                    if (pageUrl == BLANK) return
+                    evaluate()
+                }
 
                 override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
                     if (!request.isForMainFrame) return
