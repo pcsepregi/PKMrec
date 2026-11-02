@@ -112,4 +112,46 @@ class SealedTest {
         assertTrue(SealedMatcher.matches("blak", text))
         assertTrue(!SealedMatcher.matches("tin", text))
     }
+
+    private fun price(eur: Double, time: Long, kind: String = SealedPrice.KIND_PRICE) = SealedPrice(kind, eur, 7, time)
+
+    @Test
+    fun `a new price moves the old one into the history, keeping two`() {
+        var item = SealedItem(1, "ETB", count = 1)
+        item = SealedInventory.withPrice(item, price(50.0, 1))
+        assertTrue(item.previousPrices.isEmpty())
+        item = SealedInventory.withPrice(item, price(52.0, 2))
+        item = SealedInventory.withPrice(item, price(55.0, 3))
+        item = SealedInventory.withPrice(item, price(54.0, 4))
+        assertEquals(4L, item.price!!.time)
+        assertEquals(listOf(3L, 2L), item.previousPrices.map { it.time })
+        // The same price again (a failed refresh keeps the old one) does not move the history.
+        item = SealedInventory.withPrice(item, item.price)
+        assertEquals(listOf(3L, 2L), item.previousPrices.map { it.time })
+    }
+
+    @Test
+    fun `the trend compares the euro price with the previous one, 1 euro either way is unchanged`() {
+        fun trend(before: Double?, now: Double?): PriceTrend? = SealedItem(
+            1, "ETB", count = 1,
+            price = now?.let { price(it, 2) } ?: price(0.0, 2, SealedPrice.KIND_NONE),
+            previousPrices = listOf(before?.let { price(it, 1) } ?: price(0.0, 1, SealedPrice.KIND_NONE)),
+        ).trend
+        assertEquals(PriceTrend.SAME, trend(50.0, 51.0))
+        assertEquals(PriceTrend.SAME, trend(50.0, 49.0))
+        assertEquals(PriceTrend.UP, trend(50.0, 51.01))
+        assertEquals(PriceTrend.DOWN, trend(50.0, 48.5))
+        assertNull(trend(null, 50.0))
+        assertNull(trend(50.0, null))
+        assertNull(SealedItem(1, "ETB", count = 1, price = price(50.0, 1)).trend)
+    }
+
+    @Test
+    fun `merging keeps the newest price and the two before it`() {
+        val phone = SealedItem(1, "ETB", count = 1, price = price(55.0, 3), previousPrices = listOf(price(52.0, 2)))
+        val file = SealedItem(1, "ETB", count = 1, price = price(50.0, 1))
+        val merged = SealedInventory.merge(listOf(phone), listOf(file)).single()
+        assertEquals(3L, merged.price!!.time)
+        assertEquals(listOf(2L, 1L), merged.previousPrices.map { it.time })
+    }
 }

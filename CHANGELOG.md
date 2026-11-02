@@ -6,6 +6,13 @@ Release notes shown in the app's update dialog are taken from the matching secti
 
 - Enable R8 code shrinking for a smaller APK.
 
+## 2.2.0
+
+Sealed catalog: price history and trend.
+- Each price refresh keeps the two prices before it. The product screen lists them with their dates.
+- Next to the price, in the list and on the product screen: "=" if the price per piece changed by at most 1 € since the previous refresh, a green ↑ if it rose more, a red ↓ if it fell more. No mark until a product has two prices with offers.
+- A refresh that fails or stops at the Cloudflare check does not count as a new price.
+
 ## 2.1.0
 
 - Card recognition result: new "Kivétel a kollekcióból" button under "Hozzáadás a kollekcióhoz". After an "are you sure?" it takes one copy of the shown variant out of your TCG Collector collection; 6 seconds to undo, recorded in the Kollekció napló.

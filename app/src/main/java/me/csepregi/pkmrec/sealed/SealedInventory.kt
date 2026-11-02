@@ -31,6 +31,9 @@ data class SealedPrice(
     }
 }
 
+/** How the last price compares with the one before: up or down by more than [SealedItem.TREND_THRESHOLD_EUR], or about the same. */
+enum class PriceTrend { UP, DOWN, SAME }
+
 /** A product in the Sealed catalog: how many Pali has, the average purchase price per piece and the last price. */
 @Serializable
 data class SealedItem(
@@ -44,13 +47,35 @@ data class SealedItem(
     /** The Cardmarket product page, once found. */
     val productUrl: String? = null,
     val price: SealedPrice? = null,
+    /** The prices before [price], newest first (at most [PRICE_HISTORY]). */
+    val previousPrices: List<SealedPrice> = emptyList(),
     /** The product picture on Cardmarket, saved with the price. */
     val imageUrl: String? = null,
     /** The downloaded picture in the app's files (see [SealedImages]). */
     val imageFile: String? = null,
     /** Why the last picture download failed, shown on the product screen. */
     val imageError: String? = null,
-)
+) {
+    /** The euro price of one piece now against the previous price; null unless both had offers. */
+    val trend: PriceTrend?
+        get() {
+            val now = price?.value ?: return null
+            val before = previousPrices.firstOrNull()?.value ?: return null
+            return when {
+                now - before > TREND_THRESHOLD_EUR -> PriceTrend.UP
+                before - now > TREND_THRESHOLD_EUR -> PriceTrend.DOWN
+                else -> PriceTrend.SAME
+            }
+        }
+
+    companion object {
+        /** Prices kept before the current one. */
+        const val PRICE_HISTORY = 2
+
+        /** A change of at most this much (per piece) counts as unchanged. */
+        const val TREND_THRESHOLD_EUR = 1.0
+    }
+}
 
 @Serializable
 private data class InventoryFile(val version: Int = 1, val items: List<SealedItem>)
@@ -117,8 +142,15 @@ object SealedInventory {
 
     suspend fun setPurchase(context: Context, id: Int, unitHuf: Long?) = update(context, id) { it.copy(purchaseHuf = unitHuf) }
 
+    /** A newly loaded [price] moves the current one into the history; passing the current one again changes nothing there. */
     suspend fun setPrice(context: Context, id: Int, price: SealedPrice?, productUrl: String?, imageUrl: String? = null) =
-        update(context, id) { it.copy(price = price, productUrl = productUrl, imageUrl = imageUrl ?: it.imageUrl) }
+        update(context, id) { withPrice(it, price).copy(productUrl = productUrl, imageUrl = imageUrl ?: it.imageUrl) }
+
+    internal fun withPrice(item: SealedItem, price: SealedPrice?): SealedItem {
+        val old = item.price
+        if (price == null || old == null || price.time == old.time) return item.copy(price = price)
+        return item.copy(price = price, previousPrices = (listOf(old) + item.previousPrices).take(SealedItem.PRICE_HISTORY))
+    }
 
     suspend fun setImage(context: Context, id: Int, imageFile: String?, imageError: String?) =
         update(context, id) { it.copy(imageFile = imageFile ?: it.imageFile, imageError = imageError) }
@@ -175,9 +207,20 @@ object SealedInventory {
                 imageUrl = old.imageUrl ?: item.imageUrl,
                 imageFile = old.imageFile ?: item.imageFile,
                 price = listOfNotNull(old.price, item.price).maxByOrNull { it.time },
+                previousPrices = mergedHistory(old, item),
             )
         }
         return byId.values.toList()
+    }
+
+    /** Both items' prices before the newest current one, newest first, without duplicates. */
+    private fun mergedHistory(a: SealedItem, b: SealedItem): List<SealedPrice> {
+        val current = listOfNotNull(a.price, b.price).maxByOrNull { it.time }
+        return (listOfNotNull(a.price, b.price) + a.previousPrices + b.previousPrices)
+            .filter { it.time != current?.time }
+            .distinctBy { it.time }
+            .sortedByDescending { it.time }
+            .take(SealedItem.PRICE_HISTORY)
     }
 
     /**

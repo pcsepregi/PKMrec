@@ -46,6 +46,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
@@ -68,6 +71,7 @@ import me.csepregi.pkmrec.sealed.SealedImages
 import me.csepregi.pkmrec.sealed.SealedInventory
 import me.csepregi.pkmrec.sealed.SealedItem
 import me.csepregi.pkmrec.sealed.SealedMatcher
+import me.csepregi.pkmrec.sealed.PriceTrend
 import me.csepregi.pkmrec.sealed.SealedPrice
 import me.csepregi.pkmrec.sealed.SealedPrices
 import me.csepregi.pkmrec.sealed.SealedProduct
@@ -282,11 +286,17 @@ private fun OwnedRow(item: SealedItem, onClick: () -> Unit) {
             Spacer(Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.End) {
                 Text(stringResource(R.string.sealed_count, item.count), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text(
-                    item.price?.value?.let { CardmarketPrice.format(it) } ?: stringResource(R.string.sealed_no_price_short),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        item.price?.value?.let { CardmarketPrice.format(it) } ?: stringResource(R.string.sealed_no_price_short),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    item.trend?.let {
+                        Spacer(Modifier.width(4.dp))
+                        TrendMark(it, MaterialTheme.typography.titleSmall)
+                    }
+                }
             }
         }
     }
@@ -392,7 +402,7 @@ fun SealedItemScreen(id: Int, onBack: () -> Unit) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     val title = stringResource(R.string.cardmarket_title)
                     if (loadingPrice) Text(stringResource(R.string.cardmarket_loading, title), style = MaterialTheme.typography.bodyLarge)
-                    else SealedPriceLines(item.price, title, rate)
+                    else SealedPriceLines(item, title, rate)
                     when (val r = lastResult) {
                         is CardmarketResult.NotFound -> Text(stringResource(R.string.sealed_not_found), style = MaterialTheme.typography.bodyMedium)
                         is CardmarketResult.Challenge -> {
@@ -478,7 +488,8 @@ fun SealedItemScreen(id: Int, onBack: () -> Unit) {
 private val PRICE_DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
 @Composable
-private fun SealedPriceLines(price: SealedPrice?, title: String, rate: Double?) {
+private fun SealedPriceLines(item: SealedItem, title: String, rate: Double?) {
+    val price = item.price
     if (price == null) {
         Text(stringResource(R.string.sealed_price_never, title), style = MaterialTheme.typography.bodyLarge)
         return
@@ -492,6 +503,10 @@ private fun SealedPriceLines(price: SealedPrice?, title: String, rate: Double?) 
             Text("$title: ", style = MaterialTheme.typography.titleMedium)
             Text(CardmarketPrice.format(value), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             if (rate != null) Text(" (≈ " + EurHuf.formatHuf(value, rate) + ")", style = MaterialTheme.typography.titleMedium)
+            item.trend?.let {
+                Spacer(Modifier.width(8.dp))
+                TrendMark(it, MaterialTheme.typography.titleLarge)
+            }
         }
         if (price.kind == SealedPrice.KIND_FEW) {
             Hint(stringResource(R.string.cardmarket_few_offers, price.eligible))
@@ -500,6 +515,30 @@ private fun SealedPriceLines(price: SealedPrice?, title: String, rate: Double?) 
         }
     }
     Hint(stringResource(R.string.sealed_price_date, date))
+    if (item.previousPrices.isNotEmpty()) {
+        Text(stringResource(R.string.sealed_previous_prices), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        item.previousPrices.forEach { old ->
+            val oldDate = Instant.ofEpochMilli(old.time).atZone(ZoneId.systemDefault()).format(PRICE_DATE)
+            val oldValue = old.value
+            Text(
+                "$oldDate: " + (oldValue?.let { CardmarketPrice.format(it) + (rate?.let { r -> " (≈\u00A0" + EurHuf.formatHuf(it, r) + ")" } ?: "") }
+                    ?: stringResource(R.string.sealed_previous_no_offers)),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    }
+}
+
+/** = within 1 € of the previous price, green ↑ above it, red ↓ below it. */
+@Composable
+private fun TrendMark(trend: PriceTrend, style: TextStyle) {
+    val (symbol, color, description) = when (trend) {
+        PriceTrend.UP -> Triple("↑", VerdictColors.Owned, R.string.sealed_trend_up)
+        PriceTrend.DOWN -> Triple("↓", VerdictColors.NotOwned, R.string.sealed_trend_down)
+        PriceTrend.SAME -> Triple("=", MaterialTheme.colorScheme.onSurfaceVariant, R.string.sealed_trend_same)
+    }
+    val label = stringResource(description)
+    Text(symbol, style = style, color = color, fontWeight = FontWeight.Bold, modifier = Modifier.semantics { contentDescription = label })
 }
 
 /** Count and price per piece of a purchase; the price may stay empty. */

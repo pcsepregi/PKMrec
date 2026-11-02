@@ -315,6 +315,11 @@
     <string name="sealed_price_never">%1$s: még nincs lekérve.</string>
     <string name="sealed_rule">Angol ajánlatok, a 2 legolcsóbb nélkül a következő 5 átlaga</string>
     <string name="sealed_price_date">Lekérve: %1$s</string>
+    <string name="sealed_previous_prices">Előző árak</string>
+    <string name="sealed_previous_no_offers">nem volt angol ajánlat</string>
+    <string name="sealed_trend_up">Az ár több mint 1 €-val nőtt</string>
+    <string name="sealed_trend_down">Az ár több mint 1 €-val csökkent</string>
+    <string name="sealed_trend_same">Az ár 1 €-n belül maradt</string>
     <string name="sealed_remove_title">Törlöd a listából?</string>
     <string name="sealed_remove_text">A(z) %1$s darabszáma 0 lett. Törlöd a listából, vagy maradjon 0 darabbal?</string>
     <string name="sealed_remove">Törlés</string>
