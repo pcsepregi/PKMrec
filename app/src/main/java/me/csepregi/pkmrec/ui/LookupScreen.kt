@@ -161,6 +161,7 @@ fun LookupScreen(onRescan: () -> Unit, onHome: () -> Unit, onLogin: () -> Unit) 
                 is LookupUiState.PickVariant -> {
                     CardHeader(s.card)
                     if (s.bySymbol) BySymbolNote()
+                    OnTempList(s.card)
                     Text(stringResource(R.string.lookup_pick_variant), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     s.card.variants.forEach { variant ->
                         VariantRow(variant = variant, onClick = { vm.chooseVariant(s.card, variant) })
@@ -235,6 +236,8 @@ private fun VerdictContent(
             fontWeight = FontWeight.Black,
         )
     }
+
+    OnTempList(state.card)
 
     state.variant?.let { variant ->
         Text(
@@ -365,6 +368,33 @@ private fun AddToCollection(
                 TextButton(onClick = onLogin) { Text(stringResource(R.string.login)) }
             }
         }
+    }
+}
+
+/**
+ * The card is already on the temporary list (not yet in the collection, so the verdict does not
+ * change): e.g. "Az ideiglenes listán van: Reverse Holo 2 db".
+ */
+@Composable
+private fun OnTempList(card: TcgCard) {
+    val context = LocalContext.current
+    val items by TempList.items.collectAsState()
+    LaunchedEffect(Unit) { TempList.load(context) }
+    val perVariant = items.filter { it.cardId == card.id }.groupingBy { it.variantName }.eachCount()
+    if (perVariant.isEmpty()) return
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color(0xFFF59E0B))
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Text(
+            stringResource(R.string.lookup_on_temp_list, perVariant.entries.joinToString(", ") { "${it.key} ${it.value} db" }),
+            color = Color.Black,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+        )
     }
 }
 

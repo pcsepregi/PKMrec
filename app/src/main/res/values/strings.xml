@@ -371,4 +371,5 @@
     <string name="temp_list_bulk_stopped">Megálltam, mert: %1$s</string>
     <string name="temp_list_recent_added">%1$s (%2$s) bekerült, most %3$d db van.</string>
     <string name="temp_list_recent_undo_failed">A visszavonás nem sikerült. %1$s</string>
+    <string name="lookup_on_temp_list">Az ideiglenes listán van: %1$s</string>
 </resources>

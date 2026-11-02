@@ -6,6 +6,15 @@ Release notes shown in the app's update dialog are taken from the matching secti
 
 - Enable R8 code shrinking for a smaller APK.
 
+## 2.3.0
+
+Temporary list and lower battery use.
+- Card recognition result: new "Ideiglenes listához adás" button. It puts the card with the shown variant on a temporary list kept on the phone (nothing changes on TCG Collector). The same card twice is two entries.
+- If a recognised card is already on the temporary list, an orange note says so ("Az ideiglenes listán van: Reverse Holo 1 db"); the owned / not owned verdict is unchanged.
+- Home screen: while the temporary list has cards, an "Ideiglenes lista · N lap" strip under the header opens it.
+- Temporary list page: "Mindet törli" (after an "are you sure?") empties the list; "Mindet a gyűjteménybe" (after a confirmation) adds one copy of every card to your TCG Collector collection, one after the other 2.5 seconds apart, with progress and a stop button. It stops if you are logged out or TCG Collector refuses the requests. Every card also has its own "Hozzáad" (6 seconds to undo) and "Töröl". A card added leaves the list, a card that failed stays with the reason. All adds appear in the Kollekció napló.
+- Lower battery use: card recognition reads a few camera frames a second instead of continuously, and the hidden Cardmarket page is unloaded after each price lookup and when the app goes to the background.
+
 ## 2.2.0
 
 Sealed catalog: price history and trend.
