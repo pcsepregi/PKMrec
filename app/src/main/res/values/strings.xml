@@ -372,4 +372,11 @@
     <string name="temp_list_recent_added">%1$s (%2$s) bekerült, most %3$d db van.</string>
     <string name="temp_list_recent_undo_failed">A visszavonás nem sikerült. %1$s</string>
     <string name="lookup_on_temp_list">Az ideiglenes listán van: %1$s</string>
+    <string name="my_cards_button">Összes lapom ebből a Pokémonból</string>
+    <string name="my_cards_button_named">Összes lapom: %1$s</string>
+    <string name="my_cards_title">Összes lapom</string>
+    <string name="my_cards_count">%1$d lap a gyűjteményedben</string>
+    <string name="my_cards_loading">Keresem a gyűjteményedben…</string>
+    <string name="my_cards_none">Ebből a Pokémonból még nincs angol lap a gyűjteményedben.</string>
+    <string name="my_cards_error">Nem sikerült betölteni a lapjaidat. %1$s</string>
 </resources>

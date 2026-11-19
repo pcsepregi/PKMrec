@@ -1,6 +1,7 @@
 package me.csepregi.pkmrec
 
 import android.graphics.Color
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -27,6 +28,7 @@ import me.csepregi.pkmrec.ui.CurrentScan
 import me.csepregi.pkmrec.ui.HomeScreen
 import me.csepregi.pkmrec.ui.LoginScreen
 import me.csepregi.pkmrec.ui.LookupScreen
+import me.csepregi.pkmrec.ui.MyCardsScreen
 import me.csepregi.pkmrec.ui.NeonBackground
 import me.csepregi.pkmrec.ui.PkmrecTheme
 import me.csepregi.pkmrec.ui.PokedexResultScreen
@@ -101,6 +103,24 @@ class MainActivity : ComponentActivity() {
                                 number = entry.arguments?.getInt("number") ?: 0,
                                 onBack = { nav.popBackStack() },
                                 onLogin = { nav.navigate(Routes.LOGIN) },
+                                onMyCards = { number, slug, listIds -> nav.navigate(Routes.myCards(number, slug, listIds)) },
+                            )
+                        }
+                        composable(
+                            Routes.MY_CARDS,
+                            arguments = listOf(
+                                navArgument("number") { type = NavType.IntType },
+                                navArgument("slug") { type = NavType.StringType },
+                                navArgument("list") { type = NavType.StringType; defaultValue = "" },
+                            ),
+                        ) { entry ->
+                            MyCardsScreen(
+                                number = entry.arguments?.getInt("number") ?: 0,
+                                slug = entry.arguments?.getString("slug").orEmpty(),
+                                listCardIds = entry.arguments?.getString("list").orEmpty()
+                                    .split(',').mapNotNull { it.toIntOrNull() }.toSet(),
+                                onBack = { nav.popBackStack() },
+                                onLogin = { nav.navigate(Routes.LOGIN) },
                             )
                         }
                         composable(Routes.CAMERA) {
@@ -117,6 +137,7 @@ class MainActivity : ComponentActivity() {
                                 onRescan = { nav.popBackStack() },
                                 onHome = { nav.popBackStack(Routes.HOME, inclusive = false) },
                                 onLogin = { nav.navigate(Routes.LOGIN) },
+                                onMyCards = { number, slug, listIds -> nav.navigate(Routes.myCards(number, slug, listIds)) },
                             )
                         }
                         composable(Routes.SETTINGS) {
@@ -192,8 +213,13 @@ object Routes {
     const val TEMP_LIST = "temp-list"
     const val SEALED = "sealed"
     const val SEALED_ITEM = "sealed/{id}"
+    const val MY_CARDS = "my-cards/{number}/{slug}?list={list}"
 
     fun pokedexResult(number: Int) = "pokedex/$number"
 
     fun sealedItem(id: Int) = "sealed/$id"
+
+    /** [listIds]: the Pokedex list's card(s) of this Pokémon, starred on the page. */
+    fun myCards(number: Int, slug: String, listIds: Collection<Int>) =
+        "my-cards/$number/${Uri.encode(slug)}?list=${listIds.joinToString(",")}"
 }

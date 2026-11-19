@@ -6,6 +6,12 @@ Release notes shown in the app's update dialog are taken from the matching secti
 
 - Enable R8 code shrinking for a smaller APK.
 
+## 2.4.0
+
+All my cards of one Pokémon.
+- Card recognition result and Pokédex search result: new "Összes lapom ebből a Pokémonból" button (on cards with several Pokémon, one button per Pokémon, e.g. "Összes lapom: Pikachu").
+- It opens a page with every English card of that Pokémon in your TCG Collector collection, newest set first, two cards per row: picture, set and number. The card in your Pokedex list has a ★. Tapping a card opens it on TCG Collector. Read-only, loaded fresh each time.
+
 ## 2.3.0
 
 Temporary list and lower battery use.

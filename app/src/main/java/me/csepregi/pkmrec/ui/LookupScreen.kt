@@ -72,7 +72,12 @@ import kotlin.math.roundToInt
 internal const val CARD_IMAGE_ASPECT = 63f / 88f
 
 @Composable
-fun LookupScreen(onRescan: () -> Unit, onHome: () -> Unit, onLogin: () -> Unit) {
+fun LookupScreen(
+    onRescan: () -> Unit,
+    onHome: () -> Unit,
+    onLogin: () -> Unit,
+    onMyCards: (number: Int, slug: String, listCardIds: List<Int>) -> Unit,
+) {
     val vm: LookupViewModel = viewModel()
     val state by vm.state.collectAsState()
     val pokedex by vm.pokedex.collectAsState()
@@ -182,6 +187,7 @@ fun LookupScreen(onRescan: () -> Unit, onHome: () -> Unit, onLogin: () -> Unit) 
                     onSwap = { vm.swapIntoPokedexList(it) },
                     onUndoSwap = { vm.undoListSwap() },
                     onRetryPokedex = { vm.retryPokedex() },
+                    onMyCards = onMyCards,
                     onLogin = onLogin,
                     onRescan = onRescan,
                     onOtherVariant = { vm.backToVariants(s.card) },
@@ -213,6 +219,7 @@ private fun VerdictContent(
     onSwap: (PokedexEntry) -> Unit,
     onUndoSwap: () -> Unit,
     onRetryPokedex: () -> Unit,
+    onMyCards: (number: Int, slug: String, listCardIds: List<Int>) -> Unit,
     onLogin: () -> Unit,
     onRescan: () -> Unit,
     onOtherVariant: () -> Unit,
@@ -269,6 +276,7 @@ private fun VerdictContent(
         onSwap = onSwap,
         onUndoSwap = onUndoSwap,
         onRetry = onRetryPokedex,
+        onMyCards = onMyCards,
         onLogin = onLogin,
     )
 
@@ -428,6 +436,7 @@ private fun PokedexSection(
     onSwap: (PokedexEntry) -> Unit,
     onUndoSwap: () -> Unit,
     onRetry: () -> Unit,
+    onMyCards: (number: Int, slug: String, listCardIds: List<Int>) -> Unit,
     onLogin: () -> Unit,
 ) {
     if (state == PokedexUiState.Idle || state == PokedexUiState.NotAPokemon) return
@@ -474,6 +483,18 @@ private fun PokedexSection(
                     }
                     if (scanned.id == state.scannedCardId) {
                         ListSwap(entry, scanned, canSwap, swap, onSwap = onSwap, onUndo = onUndoSwap, onLogin = onLogin)
+                    }
+                    OutlinedButton(
+                        onClick = { onMyCards(entry.entry.number, entry.entry.slug, entry.cards.map { it.id }) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            if (state.perPokemon.size > 1) {
+                                stringResource(R.string.my_cards_button_named, entry.entry.slug.replaceFirstChar { it.uppercase() })
+                            } else {
+                                stringResource(R.string.my_cards_button)
+                            },
+                        )
                     }
                 }
                 else -> Unit

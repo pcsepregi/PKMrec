@@ -214,7 +214,12 @@ class PokedexResultViewModel(app: Application) : AndroidViewModel(app) {
 
 /** The Pokedex list's card(s) for the chosen Pokémon, with every detail TCG Collector shows. */
 @Composable
-fun PokedexResultScreen(number: Int, onBack: () -> Unit, onLogin: () -> Unit) {
+fun PokedexResultScreen(
+    number: Int,
+    onBack: () -> Unit,
+    onLogin: () -> Unit,
+    onMyCards: (number: Int, slug: String, listCardIds: List<Int>) -> Unit,
+) {
     val vm: PokedexResultViewModel = viewModel()
     val state by vm.state.collectAsState()
     val pokemon by vm.pokemon.collectAsState()
@@ -269,6 +274,11 @@ fun PokedexResultScreen(number: Int, onBack: () -> Unit, onLogin: () -> Unit) {
                     s.cards.forEachIndexed { index, card ->
                         if (index > 0) HorizontalDivider()
                         PokedexCard(card)
+                    }
+                    pokemon?.let { p ->
+                        Button(onClick = { onMyCards(p.number, p.slug, s.cards.map { it.id }) }, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.my_cards_button))
+                        }
                     }
                     RareCardsSection(rare, onRetry = { vm.retryRare() }, onLogin = onLogin)
                     Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.pokedex_new_search)) }
