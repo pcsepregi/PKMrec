@@ -37,18 +37,35 @@ import kotlin.math.roundToInt
  * With [detectPresence] on (debug mode), each frame also reports which kinds of card text were seen
  * (see [CardPresence]); otherwise the set is empty.
  *
- * A frame without a number also reports the set code and name, if both were read ([CardTextParser.codeAndName]).
+ * A frame without a number also reports the set code and name, if both were read ([CardTextParser.codeAndName]),
+ * and the Pokémon name alone ([Frame.pokemonName]).
+ *
+ * [loadSets] gives the known set codes and totals ([KnownSets]); also called once, on the analysis thread.
  */
 class CardTextAnalyzer(
     private val loadNames: () -> List<String> = { emptyList() },
-    private val onFrame: (
-        reading: CardReading?,
-        lines: List<OcrLine>,
-        symbol: GrayImage?,
-        markers: Set<CardPresence.Marker>,
-        codeOnly: CardReading?,
-    ) -> Unit,
+    private val loadSets: () -> KnownSets? = { null },
+    private val onFrame: (Frame) -> Unit,
 ) : ImageAnalysis.Analyzer, Closeable {
+
+    /**
+     * What one camera frame gave.
+     *
+     * @property symbol with a reading, the greyscale crop next to the number where the set symbol is printed
+     * @property markers kinds of card text seen (debug mode only, else empty)
+     * @property codeOnly without a number: the set code and name, if both were read
+     * @property pokemonName without a number: the Pokémon name read at the top of the card, if any
+     * @property readMs how long reading the frame took
+     */
+    class Frame(
+        val reading: CardReading?,
+        val lines: List<OcrLine>,
+        val symbol: GrayImage?,
+        val markers: Set<CardPresence.Marker>,
+        val codeOnly: CardReading?,
+        val pokemonName: String?,
+        val readMs: Long,
+    )
 
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
@@ -63,12 +80,12 @@ class CardTextAnalyzer(
 
         fun isNumberLike(text: String): Boolean =
             NUMBER_LIKE.findAll(text).any { match -> match.value.count { it.isDigit() } >= 2 }
-
-        /** The short "weakness / resistance / retreat" label line just above the number (OCR: "TEtrat", "weakness2"). */
-        val WEAKNESS_LINE = Regex("""weak|resist|retreat|etreat|etrat""", RegexOption.IGNORE_CASE)
     }
 
     @Volatile private var names: PokemonNameFinder? = null
+    @Volatile private var sets: KnownSets? = null
+    @Volatile private var setsLoaded = false
+    @Volatile private var frameStartedAt = 0L
 
     @Volatile var paused = false
 
@@ -84,9 +101,16 @@ class CardTextAnalyzer(
         pacer.finished(cardText = reading != null || lines.any { isNumberLike(it.text) })
         busy = false
         if (paused) return
-        val markers = if (detectPresence) CardPresence.markers(lines, names) else emptySet()
-        val codeOnly = if (reading == null) CardTextParser.codeAndName(lines, names) else null
-        onFrame(reading, lines, symbol, markers, codeOnly)
+        val nameFinder = names
+        val markers = if (detectPresence) CardPresence.markers(lines, nameFinder) else emptySet()
+        val codeOnly = if (reading == null) CardTextParser.codeAndName(lines, nameFinder, sets) else null
+        val pokemonName = if (reading == null && nameFinder != null && !nameFinder.isEmpty) {
+            CardTextParser.findName(lines, nameFinder)?.let { nameFinder.find(it) }
+        } else {
+            null
+        }
+        val readMs = SystemClock.elapsedRealtime() - frameStartedAt
+        onFrame(Frame(reading, lines, symbol, markers, codeOnly, pokemonName, readMs))
     }
 
     override fun analyze(image: ImageProxy) {
@@ -96,10 +120,16 @@ class CardTextAnalyzer(
             return
         }
         busy = true
+        frameStartedAt = SystemClock.elapsedRealtime()
         if (names == null) {
             names = PokemonNameFinder(runCatching { loadNames() }.getOrDefault(emptyList()))
         }
+        if (!setsLoaded) {
+            sets = runCatching { loadSets() }.getOrNull()
+            setsLoaded = true
+        }
         val nameFinder = names
+        val knownSets = sets
         val rotation = image.imageInfo.rotationDegrees
         val sideways = rotation == 90 || rotation == 270
         val width = if (sideways) image.height else image.width
@@ -114,7 +144,7 @@ class CardTextAnalyzer(
                     return@addOnCompleteListener
                 }
                 val fullLines = task.result.toLines()
-                val quickParsed = CardTextParser.parseWithLine(fullLines, height, nameFinder)
+                val quickParsed = CardTextParser.parseWithLine(fullLines, height, nameFinder, knownSets)
                 val quick = quickParsed?.reading
 
                 // Pass 2 region: the bottom strip when the whole card is in view; otherwise, when no valid
@@ -180,7 +210,7 @@ class CardTextAnalyzer(
                         val inv = if (second.isSuccessful) linesOf(second.result) else emptyList()
                         // All readings take part; the parser prefers complete lines with a set code.
                         val merged = fullLines + plain + inv
-                        val parsed = CardTextParser.parseWithLine(merged, height, nameFinder) ?: quickParsed
+                        val parsed = CardTextParser.parseWithLine(merged, height, nameFinder, knownSets) ?: quickParsed
                         val symbol = parsed?.let { p ->
                             val area = symbolArea(p.numberLine, region) ?: return@let null
                             regionLuminance?.let { lum ->
@@ -325,33 +355,9 @@ class CardTextAnalyzer(
 
     private class Crop(val bitmap: Bitmap, val scale: Float)
 
-    /**
-     * The card's bottom strip, where set code and number are printed: below the weakness / retreat line
-     * when that was read, otherwise the bottom ~16 % of the text area. The weakness line keeps the strip
-     * on the card when there is other text below it (e.g. a price under a card shown on a screen).
-     */
-    private fun bottomStrip(lines: List<OcrLine>, width: Int, height: Int): Strip? {
-        if (lines.size < 3) return null
-        val top = lines.minOf { it.top }
-        val weakness = lines.filter { it.text.length <= 30 && WEAKNESS_LINE.containsMatchIn(it.text) }.maxByOrNull { it.top }
-        val (stripTop, stripBottom) = if (weakness != null && weakness.top - top >= height / 6) {
-            // The number is a few label heights below the weakness line; the text above may include
-            // more than the card (e.g. a web page on a screen), so it only limits the strip.
-            val span = weakness.top - top
-            val below = min((span * 0.28f).roundToInt(), 5 * weakness.height.coerceAtLeast(10))
-            max(0, weakness.top) to min(height, weakness.bottom + below)
-        } else {
-            val bottom = lines.maxOf { it.bottom }
-            val span = bottom - top
-            if (span < height / 5) return null // not a whole card in view
-            max(0, bottom - (span * 0.16f).roundToInt()) to min(height, bottom + (span * 0.04f).roundToInt())
-        }
-        val onCard = lines.filter { it.top <= stripBottom }
-        val left = max(0, onCard.minOf { it.left } - width / 40)
-        val right = min(width, onCard.maxOf { it.right } + width / 40)
-        if (right - left < 50 || stripBottom - stripTop < 20) return null
-        return Strip(left, stripTop, right, stripBottom)
-    }
+    /** The card's bottom strip ([BottomStrip]), where set code and number are printed. */
+    private fun bottomStrip(lines: List<OcrLine>, width: Int, height: Int): Strip? =
+        BottomStrip.find(lines, width, height)?.let { Strip(it.left, it.top, it.right, it.bottom) }
 
     /**
      * The [strip] (in upright frame coordinates) of the camera [frame], enlarged, in the reused buffer.

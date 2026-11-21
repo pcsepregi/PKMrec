@@ -83,11 +83,14 @@ import me.csepregi.pkmrec.diagnostics.SlowScanLog
 import me.csepregi.pkmrec.pokedex.PokemonNames
 import me.csepregi.pkmrec.recognition.CardPresence
 import me.csepregi.pkmrec.recognition.CardReading
-import me.csepregi.pkmrec.recognition.NameInSetFallback
 import me.csepregi.pkmrec.recognition.CardTextAnalyzer
 import me.csepregi.pkmrec.recognition.GrayImage
+import me.csepregi.pkmrec.recognition.KnownSets
+import me.csepregi.pkmrec.recognition.NameInSetFallback
+import me.csepregi.pkmrec.recognition.NameOnlyOffer
 import me.csepregi.pkmrec.recognition.OcrLine
 import me.csepregi.pkmrec.recognition.ReadingStabilizer
+import me.csepregi.pkmrec.recognition.SetSymbols
 import me.csepregi.pkmrec.recognition.SlowScanTracker
 import java.util.concurrent.Executors
 import kotlin.math.roundToInt
@@ -142,6 +145,9 @@ private fun ScannerContent(onBack: () -> Unit, onRecognized: (CardReading) -> Un
 
     val stabilizer = remember { ReadingStabilizer() }
     val byNameInSet = remember { NameInSetFallback() }
+    val byNameOnly = remember { NameOnlyOffer() }
+    // A Pokémon name read for a while without a number: offered for a lookup by name only.
+    var nameOffer by remember { mutableStateOf<String?>(null) }
     var live by remember { mutableStateOf<CardReading?>(null) }
     var confirmed by remember { mutableStateOf<CardReading?>(null) }
     var camera by remember { mutableStateOf<Camera?>(null) }
@@ -168,8 +174,15 @@ private fun ScannerContent(onBack: () -> Unit, onRecognized: (CardReading) -> Un
     }
 
     val analyzer = remember {
-        CardTextAnalyzer(loadNames = { PokemonNames.all(context).map { it.name } }) { reading, lines, symbol, markers, codeOnly ->
+        CardTextAnalyzer(
+            loadNames = { PokemonNames.all(context).map { it.name } },
+            loadSets = { KnownSets.of(SetSymbols.index(context).entries) },
+        ) { frame ->
             if (confirmed != null) return@CardTextAnalyzer
+            val reading = frame.reading
+            val lines = frame.lines
+            val symbol = frame.symbol
+            val markers = frame.markers
             rawLines = lines
             rawSymbol = symbol?.let { "${it.width}x${it.height}" }
             if (reading != null && symbol != null) {
@@ -177,11 +190,12 @@ private fun ScannerContent(onBack: () -> Unit, onRecognized: (CardReading) -> Un
                 while (symbols.size > 5) symbols.removeFirst()
             }
             // No number at all but the same set code and name for a while: look the card up by name in that set.
-            val stable = stabilizer.offer(reading) ?: byNameInSet.offer(reading, codeOnly)
+            val stable = stabilizer.offer(reading) ?: byNameInSet.offer(reading, frame.codeOnly)
             live = stabilizer.current
+            nameOffer = byNameOnly.offer(SystemClock.elapsedRealtime(), frame.pokemonName)
             if (debugMode) {
                 val now = SystemClock.elapsedRealtime()
-                slowScans.offer(now, markers, reading) { ocrReport(lines, live, rawSymbol) }
+                slowScans.offer(now, markers, reading, frame.readMs) { ocrReport(lines, live, rawSymbol) }
                     ?.let { SlowScanLog.log(context, it) }
                 debugMarkers = markers
                 debugElapsed = slowScans.elapsed(now)
@@ -341,6 +355,8 @@ private fun ScannerContent(onBack: () -> Unit, onRecognized: (CardReading) -> Un
                     onRescan = {
                         stabilizer.reset()
                         byNameInSet.reset()
+                        byNameOnly.reset()
+                        nameOffer = null
                         live = null
                         confirmed = null
                     },
@@ -358,6 +374,19 @@ private fun ScannerContent(onBack: () -> Unit, onRecognized: (CardReading) -> Un
                             DebugStatus(markers = debugMarkers, elapsedMs = debugElapsed)
                         }
                     }
+                }
+                nameOffer?.let { name ->
+                    Button(
+                        onClick = {
+                            val reading = CardReading(null, "", null, name = name)
+                            finishAttempt(SlowScanTracker.Outcome.BY_NAME, reading)
+                            CurrentScan.symbol = null
+                            symbols.clear()
+                            nameOffer = null
+                            confirmed = reading
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(stringResource(R.string.camera_search_by_name, name), maxLines = 1) }
                 }
             }
 

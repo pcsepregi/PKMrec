@@ -1,7 +1,10 @@
 package me.csepregi.pkmrec.recognition
 
-/** One English set whose symbol is bundled: pokemontcg.io set id (also the image's file name), set code, name. */
-data class SetSymbolEntry(val id: String, val code: String?, val name: String)
+/**
+ * One English set whose symbol is bundled: pokemontcg.io set id (also the image's file name), set code,
+ * name, and the total printed after the slash (null when the index has none).
+ */
+data class SetSymbolEntry(val id: String, val code: String?, val name: String, val printedTotal: Int? = null)
 
 /**
  * The bundled set symbols (`assets/set_symbols/index.tsv`, downloaded from pokemontcg.io at build time)
@@ -32,7 +35,7 @@ class SetSymbolIndex(val entries: List<SetSymbolEntry>) {
     }
 
     companion object {
-        /** Lines of `id<TAB>code<TAB>name`; the code may be empty. */
+        /** Lines of `id<TAB>code<TAB>name[<TAB>printed total]`; the code and total may be empty. */
         fun parse(text: String): SetSymbolIndex = SetSymbolIndex(
             text.lineSequence()
                 .map { it.trimEnd('\r') }
@@ -40,7 +43,7 @@ class SetSymbolIndex(val entries: List<SetSymbolEntry>) {
                 .mapNotNull { line ->
                     val parts = line.split('\t')
                     if (parts.size < 3 || parts[0].isBlank() || parts[2].isBlank()) null
-                    else SetSymbolEntry(parts[0], parts[1].ifBlank { null }, parts[2])
+                    else SetSymbolEntry(parts[0], parts[1].ifBlank { null }, parts[2], parts.getOrNull(3)?.trim()?.toIntOrNull())
                 }
                 .toList(),
         )

@@ -31,6 +31,13 @@ class SlowScanFormatTest {
     }
 
     @Test
+    fun `entry shows frame statistics when measured`() {
+        val lines = SlowScanFormat.entry("2026-11-21 14:00:00", scan(1).copy(frames = 20, framesWithReading = 4, frameMs = 13_000)).lines()
+        assertEquals("frames: 20, with number 4, avg 650 ms", lines[3])
+        assertEquals("PKMrec 0.12.0 OCR", lines[4])
+    }
+
+    @Test
     fun `only the newest entries are kept`() {
         val log = (1..60).joinToString("") { SlowScanFormat.entry("2026-10-24 14:00:00", scan(it)) }
         assertEquals(60, SlowScanFormat.countEntries(log))

@@ -69,6 +69,10 @@ object CardLookup {
     suspend fun lookupByNameInSet(context: Context, name: String, setCode: String): LookupOutcome =
         lookupByName(context, name) { cards -> byNameInSet(name, setCode, cards) }
 
+    /** All English cards with [name] (the camera's "search by name" when no number was readable). */
+    suspend fun lookupByNameOnly(context: Context, name: String): LookupOutcome =
+        lookupByName(context, name) { cards -> byNameInSet(name, null, cards) }
+
     private suspend fun lookupByName(context: Context, name: String, match: (List<TcgCard>) -> MatchResult): LookupOutcome =
         withContext(Dispatchers.IO) {
             try {
@@ -96,11 +100,14 @@ object CardLookup {
             }
         }
 
-    /** The English cards of [setCode] whose name contains [name] or is close to it, best match first. */
-    internal fun byNameInSet(name: String, setCode: String, cards: List<TcgCard>): MatchResult {
+    /**
+     * The English cards of [setCode] (of any set when null) whose name contains [name] or is close to it,
+     * best match first.
+     */
+    internal fun byNameInSet(name: String, setCode: String?, cards: List<TcgCard>): MatchResult {
         val inSet = cards.distinctBy { it.id }
             .filter { it.regionId == null || it.regionId == TcgIds.REGION_INTERNATIONAL }
-            .filter { it.expansionCode.equals(setCode, ignoreCase = true) || CardMatcher.codeMatchesLoosely(setCode, it.expansionCode) }
+            .filter { setCode == null || it.expansionCode.equals(setCode, ignoreCase = true) || CardMatcher.codeMatchesLoosely(setCode, it.expansionCode) }
             .filter { namesMatch(name, it.name) }
             .sortedByDescending { CardMatcher.nameSimilarity(name, it.name) }
         return when (inSet.size) {

@@ -15,9 +15,14 @@ class SlowScanTracker(
         CARD_GONE("card out of view"),
         STOPPED("scan stopped"),
         MANUAL("manual entry"),
+        BY_NAME("search by name"),
     }
 
-    /** A finished slow attempt; [lastFrame] is the OCR report of the last frame with the card in view. */
+    /**
+     * A finished slow attempt; [lastFrame] is the OCR report of the last frame with the card in view.
+     * [frames] were read during the attempt, [framesWithReading] of them gave a number; [frameMs] is
+     * the total time spent reading them (0 when not measured).
+     */
     data class SlowScan(
         val durationMs: Long,
         val outcome: Outcome,
@@ -25,13 +30,22 @@ class SlowScanTracker(
         val readings: Map<String, Int>,
         val lastMarkers: Set<CardPresence.Marker>,
         val lastFrame: String,
-    )
+        val frames: Int = 0,
+        val framesWithReading: Int = 0,
+        val frameMs: Long = 0,
+    ) {
+        /** Average time to read one frame, or null when not measured. */
+        val averageFrameMs: Long? get() = if (frames > 0 && frameMs > 0) frameMs / frames else null
+    }
 
     private var startedAt: Long? = null
     private var lastSeenAt = 0L
     private var lastMarkers: Set<CardPresence.Marker> = emptySet()
     private var lastFrame = ""
     private val readings = linkedMapOf<String, Int>()
+    private var frames = 0
+    private var framesWithReading = 0
+    private var frameMs = 0L
 
     /** Milliseconds since the current attempt started, or null when no card has been in view. */
     fun elapsed(now: Long): Long? = startedAt?.let { now - it }
@@ -40,7 +54,13 @@ class SlowScanTracker(
      * Feeds one frame. [frameReport] is only built for frames with the card in view.
      * Returns a slow attempt that ended because the card was out of view long enough, otherwise null.
      */
-    fun offer(now: Long, markers: Set<CardPresence.Marker>, reading: CardReading?, frameReport: () -> String): SlowScan? {
+    fun offer(
+        now: Long,
+        markers: Set<CardPresence.Marker>,
+        reading: CardReading?,
+        readMs: Long = 0,
+        frameReport: () -> String,
+    ): SlowScan? {
         // Also after a pause without frames (e.g. the manual entry dialog was open).
         val ended = if (startedAt != null && now - lastSeenAt >= goneAfterMs) finish(lastSeenAt, Outcome.CARD_GONE, null) else null
         val inView = CardPresence.isCardInView(markers)
@@ -50,7 +70,12 @@ class SlowScanTracker(
             lastMarkers = markers
             lastFrame = frameReport()
         }
-        if (startedAt != null) reading?.let { readings[it.display] = (readings[it.display] ?: 0) + 1 }
+        if (startedAt != null) {
+            reading?.let { readings[it.display] = (readings[it.display] ?: 0) + 1 }
+            frames++
+            if (reading != null) framesWithReading++
+            frameMs += readMs
+        }
         return ended
     }
 
@@ -61,11 +86,17 @@ class SlowScanTracker(
         val gone = start != null && now - lastSeenAt >= goneAfterMs
         val end = if (gone) lastSeenAt else now
         val scan = if (start != null && end - start > slowAfterMs) {
-            if (gone) {
-                SlowScan(end - start, Outcome.CARD_GONE, null, readings.toMap(), lastMarkers, lastFrame)
-            } else {
-                SlowScan(end - start, outcome, result, readings.toMap(), lastMarkers, lastFrame)
-            }
+            SlowScan(
+                durationMs = end - start,
+                outcome = if (gone) Outcome.CARD_GONE else outcome,
+                result = if (gone) null else result,
+                readings = readings.toMap(),
+                lastMarkers = lastMarkers,
+                lastFrame = lastFrame,
+                frames = frames,
+                framesWithReading = framesWithReading,
+                frameMs = frameMs,
+            )
         } else {
             null
         }
@@ -79,5 +110,8 @@ class SlowScanTracker(
         lastMarkers = emptySet()
         lastFrame = ""
         readings.clear()
+        frames = 0
+        framesWithReading = 0
+        frameMs = 0
     }
 }

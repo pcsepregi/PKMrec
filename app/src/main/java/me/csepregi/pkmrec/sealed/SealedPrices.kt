@@ -19,6 +19,8 @@ import me.csepregi.pkmrec.cardmarket.CardmarketPrices
 import me.csepregi.pkmrec.cardmarket.CardmarketResult
 import me.csepregi.pkmrec.cardmarket.ProductLink
 import me.csepregi.pkmrec.diagnostics.ErrorLog
+import me.csepregi.pkmrec.tcg.TcgError
+import me.csepregi.pkmrec.tcg.TcgErrorKind
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
@@ -31,6 +33,8 @@ data class SealedRefreshProgress(
     val failed: Int,
     val running: Boolean,
     val challengeUrl: String? = null,
+    /** The round stopped because there was no internet connection. */
+    val offline: Boolean = false,
 )
 
 /**
@@ -122,6 +126,11 @@ object SealedPrices {
                     _progress.value = SealedRefreshProgress(index + 1, items.size, failed, running = false, challengeUrl = result.url)
                     return@launch
                 }
+                // No connection: the next products would fail the same way, 8 s apart.
+                if (result is CardmarketResult.Failed && result.kind == CardmarketResult.Kind.NO_INTERNET) {
+                    _progress.value = SealedRefreshProgress(index + 1, items.size, failed, running = false, offline = true)
+                    return@launch
+                }
             }
             finish(items.size, items.size, failed)
         }
@@ -153,7 +162,8 @@ object SealedPrices {
         CardmarketResult.Challenge(e.url) to null
     } catch (e: Exception) {
         ErrorLog.log("sealed price", e, item.name)
-        CardmarketResult.Failed(CardmarketResult.Kind.OTHER, e.message ?: e.javaClass.simpleName) to null
+        val kind = if (TcgError.kindOf(e) == TcgErrorKind.NO_INTERNET) CardmarketResult.Kind.NO_INTERNET else CardmarketResult.Kind.OTHER
+        CardmarketResult.Failed(kind, e.message ?: e.javaClass.simpleName) to null
     }
 
     /**

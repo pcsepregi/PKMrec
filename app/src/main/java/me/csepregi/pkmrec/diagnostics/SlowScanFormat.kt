@@ -23,6 +23,10 @@ internal object SlowScanFormat {
                 .joinToString(", ") { "${it.key} x${it.value}" }
                 .ifEmpty { "-" },
         )
+        if (scan.frames > 0) {
+            val average = scan.averageFrameMs?.let { ", avg $it ms" }.orEmpty()
+            appendLine("frames: ${scan.frames}, with number ${scan.framesWithReading}$average")
+        }
         append(scan.lastFrame.trimEnd()).appendLine()
         appendLine()
     }

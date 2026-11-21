@@ -82,4 +82,17 @@ class SlowScanTrackerTest {
         tracker.cardAt(30_000, 31_500, 33_000, 34_500, 35_500)
         assertEquals(Outcome.MANUAL, tracker.finish(36_000, Outcome.MANUAL, reading)?.outcome)
     }
+
+    @Test
+    fun `counts frames, frames with a number and reading time`() {
+        val tracker = SlowScanTracker()
+        tracker.offer(0, card, null, readMs = 500) { "frame" }
+        tracker.offer(1_500, card, CardReading(null, "44", "108"), readMs = 700) { "frame" }
+        tracker.offer(3_000, card, null, readMs = 600) { "frame" }
+        tracker.offer(4_500, card, null, readMs = 400) { "frame" }
+        val scan = tracker.finish(5_200, SlowScanTracker.Outcome.STOPPED, null)!!
+        assertEquals(4, scan.frames)
+        assertEquals(1, scan.framesWithReading)
+        assertEquals(550L, scan.averageFrameMs)
+    }
 }

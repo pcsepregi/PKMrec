@@ -64,13 +64,20 @@ class TcgClient(private val userAgent: String) {
         .build()
 
     fun fetchPage(url: String): TcgPage {
+        // Refused twice in a row a moment ago: more requests now would only prolong the block.
+        if (SystemClock.elapsedRealtime() < blockedUntil) throw HttpStatusException(403)
         try {
             return fetchOnce(url)
         } catch (e: HttpStatusException) {
             // TCG Collector refuses requests for a while after a burst; one slow retry often gets through.
             if (e.code != 403) throw e
             Thread.sleep(BLOCKED_RETRY_MS)
-            return fetchOnce(url)
+            try {
+                return fetchOnce(url)
+            } catch (again: HttpStatusException) {
+                if (again.code == 403) blockedUntil = SystemClock.elapsedRealtime() + BLOCKED_PAUSE_MS
+                throw again
+            }
         }
     }
 
@@ -121,9 +128,19 @@ class TcgClient(private val userAgent: String) {
         lastRequestAt = SystemClock.elapsedRealtime()
     }
 
-    private companion object {
-        val JSON = "application/json; charset=utf-8".toMediaType()
-        const val MIN_REQUEST_GAP_MS = 1_000L
-        const val BLOCKED_RETRY_MS = 10_000L
+    companion object {
+        private val JSON = "application/json; charset=utf-8".toMediaType()
+        private const val MIN_REQUEST_GAP_MS = 1_000L
+        private const val BLOCKED_RETRY_MS = 10_000L
+
+        /** After the retry was refused too, no page requests for this long (all clients: it is one site). */
+        private const val BLOCKED_PAUSE_MS = 60_000L
+
+        @Volatile private var blockedUntil = 0L
+
+        /** Ends the pause early: the user opened TCG Collector in the app (and maybe passed a browser check). */
+        fun clearBlock() {
+            blockedUntil = 0L
+        }
     }
 }

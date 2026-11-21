@@ -9,7 +9,8 @@ package me.csepregi.pkmrec.recognition
  * - The set code is then the code most often read together with that number, if it got
  *   [codeVotes] votes; if that number was read [noCodeAfter] times without any code
  *   reaching that, the card is taken to have no set code (older cards). A two-digit set total
- *   ("25/73") only appears on older cards, so then no code is waited for.
+ *   ("25/73"), a gallery total ("TG30") or a copyright year before 2023 only appear on cards
+ *   without a code, so then no code is waited for.
  * - Frames without any reading also enter the window, so old votes age out when the
  *   card is moved away.
  */
@@ -44,15 +45,16 @@ class ReadingStabilizer(
         // 2) set code read together with that number
         val codes = sameNumber.mapNotNull { it.setCode }.groupingBy { it }.eachCount()
         val bestCode = codes.maxByOrNull { it.value }
+        val year = sameNumber.mapNotNull { it.year }.mostFrequent()
         val codeDecided = (bestCode != null && bestCode.value >= codeVotes) || sameNumber.size >= noCodeAfter ||
-            hasShortTotal(numberKey.second)
+            hasNoPrintedCode(numberKey.second, year)
         val setCode = bestCode?.takeIf { it.value >= codeVotes }?.key ?: bestCode?.key
 
         // 3) regulation mark and name: most frequent values
         val mark = sameNumber.mapNotNull { it.regulationMark }.mostFrequent()
         val name = sameNumber.mapNotNull { it.name }.mostFrequent()
 
-        val guess = CardReading(setCode, numberKey.first, numberKey.second, mark, name)
+        val guess = CardReading(setCode, numberKey.first, numberKey.second, mark, name, year)
         current = guess
 
         // The winning number must clearly lead: at least twice the votes of any other number.
@@ -65,9 +67,15 @@ class ReadingStabilizer(
         }
     }
 
-    /** "25/73": sets with a printed set code (Scarlet & Violet on) always print three-digit totals. */
-    private fun hasShortTotal(total: String?): Boolean =
-        total != null && total.length < 3 && total.all { it.isDigit() }
+    /**
+     * Cards that never print a set code, so none is waited for: a two-digit total ("25/73"; sets with a
+     * code always print three digits), a gallery total ("TG11/TG30", "SV94", "GG70"), or a copyright
+     * year before Scarlet & Violet.
+     */
+    private fun hasNoPrintedCode(total: String?, year: Int?): Boolean =
+        (total != null && total.length < 3 && total.all { it.isDigit() }) ||
+            (total != null && total.any { it.isLetter() }) ||
+            (year != null && year < CardTextParser.FIRST_YEAR_WITH_SET_CODE)
 
     fun reset() {
         recent.clear()

@@ -25,6 +25,7 @@ data class OcrLine(
  * @property total set total after the slash, e.g. "128"; null for promos
  * @property regulationMark e.g. 'G'; null if not read
  * @property name card name from the top of the card, if read
+ * @property year copyright year from the bottom line, if read (cards before 2023 have no printed set code)
  */
 data class CardReading(
     val setCode: String?,
@@ -32,6 +33,7 @@ data class CardReading(
     val total: String?,
     val regulationMark: Char? = null,
     val name: String? = null,
+    val year: Int? = null,
 ) {
     /** Identity used to decide whether consecutive frames agree (the name is not part of it). */
     val key: String get() = "${setCode.orEmpty()}|$number|${total.orEmpty()}"
@@ -43,6 +45,20 @@ data class CardReading(
     val display: String
         get() = if (isNameOnly) listOfNotNull(name, setCode?.let { "($it)" }).joinToString(" ")
         else listOfNotNull(setCode, if (total != null) "$number/$total" else number).joinToString(" ")
+}
+
+/**
+ * The English sets known to the app (from the bundled set symbol index): their set codes, and the
+ * totals printed after the slash. Used to drop set codes read from ordinary words ("often" → "OFT EN")
+ * and to split numbers whose slash was lost ("44108" → 44/108). Empty sets switch the checks off.
+ */
+data class KnownSets(val codes: Set<String>, val totals: Set<Int> = emptySet()) {
+    companion object {
+        fun of(entries: List<SetSymbolEntry>) = KnownSets(
+            entries.mapNotNull { it.code?.uppercase() }.toSet(),
+            entries.mapNotNull { it.printedTotal }.toSet(),
+        )
+    }
 }
 
 /** A reading and the OCR line its number was read from (the set symbol is printed next to it). */
@@ -62,7 +78,19 @@ object CardTextParser {
     private val NUMBER_PREFIXES = setOf("TG", "GG", "SV", "RC", "H")
 
     /** Promo set codes whose number is printed glued to the code, e.g. "SWSH123". */
-    private val GLUED_PROMO = Regex("""^(SWSH|SM|XY|BW|DP|HGSS)(\d{1,3})$""")
+    private val GLUED_PROMO = Regex("""^(SWSH|SM|XY|BW|DP|HGSS)([0-9OQDILSB]{1,3})$""")
+
+    /** Promo set codes printed before "EN" and a number without total ("SVP EN 045"). */
+    val PROMO_CODES = setOf("SVP", "MEP")
+
+    /**
+     * A Trainer Gallery number whose slash OCR read as a letter: "ETG11AG30", "TG11ATG30" → TG11/TG30.
+     * Only for tokens without a slash.
+     */
+    private val GALLERY_WITHOUT_SLASH = Regex("""TG([0-9OIL]{2})[A4]?T?G([0-9OIL]{2})""")
+
+    /** The copyright line: "©2016 Pokémon", "C2022 Pokémon / Nintendo", "©1995, 96, 98 Nintendo". */
+    private val COPYRIGHT_YEAR = Regex("""((?:19|20)\d\d)\b.{0,24}(POK|NINTENDO|NINTENA|CREATURES|GAME ?FREAK)""", RegexOption.IGNORE_CASE)
 
     private val SLASH_SPACING = Regex("""\s*/\s*""")
     private val SEPARATORS = Regex("""[·•‧∙\-–—_.,:;|\[\](){}<>«»"'`]""")
@@ -99,21 +127,36 @@ object CardTextParser {
     /** Totals of English sets stay well below this; a larger one means the slash was put in the wrong place. */
     private const val MAX_TOTAL = 300
 
+    /** Kind labels ("TRAINER", "Supporter", "Special Energy") are short lines. */
+    private const val MAX_LABEL_LENGTH = 20
+
+    /** Set codes are printed on cards from this year on (Scarlet & Violet). */
+    const val FIRST_YEAR_WITH_SET_CODE = 2023
+
     /**
      * @param names when given, the name of a Pokémon card must contain a Pokémon's name; otherwise
      *   the name is left empty rather than taking an attack or ability name.
      */
-    fun parse(lines: List<OcrLine>, imageHeight: Int, names: PokemonNameFinder? = null): CardReading? =
-        parseWithLine(lines, imageHeight, names)?.reading
+    fun parse(lines: List<OcrLine>, imageHeight: Int, names: PokemonNameFinder? = null, sets: KnownSets? = null): CardReading? =
+        parseWithLine(lines, imageHeight, names, sets)?.reading
 
-    fun parseWithLine(lines: List<OcrLine>, imageHeight: Int, names: PokemonNameFinder? = null): ParsedCard? {
+    /**
+     * @param sets when given, set codes must be known ones (a stray character glued to a known code is
+     *   dropped: "GSVP" → SVP) and a number whose slash was lost must split into a known total.
+     */
+    fun parseWithLine(
+        lines: List<OcrLine>,
+        imageHeight: Int,
+        names: PokemonNameFinder? = null,
+        sets: KnownSets? = null,
+    ): ParsedCard? {
         val tokenized = lines.map { it to tokenize(it.text) }
-        val candidates = tokenized.mapNotNull { (line, tokens) -> readNumber(line, tokens, tokenized)?.let { line to it } }
+        val candidates = tokenized.mapNotNull { (line, tokens) -> readNumber(line, tokens, tokenized, sets)?.let { line to it } }
             // Only when no number with a slash was read, and only in the enlarged bottom strip (elsewhere
             // any 4-digit text would do): a number whose slash OCR dropped ("2573" = 25/73).
             .ifEmpty {
                 tokenized.filter { (line, _) -> line.fromStrip }
-                    .mapNotNull { (line, tokens) -> readNumberWithoutSlash(tokens)?.let { line to it } }
+                    .mapNotNull { (line, tokens) -> readNumberWithoutSlash(tokens, sets)?.let { line to it } }
             }
         if (candidates.isEmpty()) return null
 
@@ -124,8 +167,12 @@ object CardTextParser {
         val (numberLine, reading) = candidates.maxBy { (line, r) ->
             (if (line.top > middle) 2 else 0) + (if (r.setCode != null) 1 else 0)
         }
-        return ParsedCard(reading.copy(name = findName(lines, names)), numberLine)
+        return ParsedCard(reading.copy(name = findName(lines, names), year = copyrightYear(lines)), numberLine)
     }
+
+    /** The year on the copyright line ("©2016 Pokémon"), the earliest if several were read; null if none. */
+    internal fun copyrightYear(lines: List<OcrLine>): Int? =
+        lines.mapNotNull { COPYRIGHT_YEAR.find(it.text)?.groupValues?.get(1)?.toInt() }.minOrNull()
 
     /** Uppercases, removes separator noise, joins "123 / 193" and splits glued "PALEN" into "PAL EN". */
     internal fun tokenize(text: String): List<String> =
@@ -135,6 +182,7 @@ object CardTextParser {
             .split(Regex("\\s+"))
             .filter { it.isNotBlank() }
             .map { token -> fixSlashReadAsV(token) }
+            .map { token -> fixGalleryWithoutSlash(token) }
             .flatMap { token ->
                 val glued = GLUED_EN.matchEntire(token)
                 if (glued != null && isSetCode(glued.groupValues[1])) listOf(glued.groupValues[1], "EN") else listOf(token)
@@ -144,6 +192,7 @@ object CardTextParser {
         line: OcrLine,
         tokens: List<String>,
         allLines: List<Pair<OcrLine, List<String>>>,
+        sets: KnownSets?,
     ): CardReading? {
         // 1) number/total, e.g. 015/128, TG05/TG30
         for ((index, token) in tokens.withIndex()) {
@@ -155,23 +204,24 @@ object CardTextParser {
                 ?: numberAfterSymbol(token.substring(0, slash))
                 ?: paddedNumberAtEnd(token.substring(0, slash), total)
                 ?: continue
-            val code = codeBeforeEn(tokens.subList(0, index))
-                ?: codeBeforeEn(tokens.subList(index + 1, tokens.size))
-                ?: nearestCodeBeforeEn(line, allLines)
+            val code = codeBeforeEn(tokens.subList(0, index), sets)
+                ?: codeBeforeEn(tokens.subList(index + 1, tokens.size), sets)
+                ?: nearestCodeBeforeEn(line, allLines, sets)
             // Cards with a set code (Scarlet & Violet era on) always print zero-padded numbers
             // ("041/132"); "41/132" next to a set code is a partial read of e.g. "141/132".
             if (code != null && isTruncated(number, total)) continue
             return CardReading(code?.first, number, total, code?.second)
         }
 
-        // 2) promo "SVP EN 045": set code, EN, number
+        // 2) promo "SVP EN 045": promo code, EN, number. Only promos print a number without total, so
+        // other codes here are words split around "en" ("Golurk en 350") or a misread.
         val enIndex = tokens.indexOf("EN")
         if (enIndex >= 1 && enIndex < tokens.size - 1) {
             val number = normalizeNumberPart(tokens[enIndex + 1])
-            val code = tokens[enIndex - 1]
-            if (number != null && number.all { it.isDigit() } && isSetCode(code)) {
-                val mark = tokens.getOrNull(enIndex - 2)?.takeIf { REGULATION_MARK.matches(it) }?.first()
-                return CardReading(code, number, null, mark)
+            val code = snapCode(tokens[enIndex - 1], PROMO_CODES)
+            if (number != null && number.all { it.isDigit() } && code != null) {
+                val mark = code.second ?: tokens.getOrNull(enIndex - 2)?.takeIf { REGULATION_MARK.matches(it) }?.first()
+                return CardReading(code.first, number, null, mark)
             }
         }
 
@@ -183,8 +233,12 @@ object CardTextParser {
         }
 
         // 3) glued promo "SWSH123"
-        tokens.firstNotNullOfOrNull { GLUED_PROMO.matchEntire(it) }?.let { match ->
-            return CardReading(match.groupValues[1], match.groupValues[2], null)
+        for (token in tokens) {
+            val match = GLUED_PROMO.matchEntire(token) ?: continue
+            // "SWSHO98": a zero read as O. At least one real digit, so words like "SMOOTH" stay out.
+            if (match.groupValues[2].none { it.isDigit() }) continue
+            val number = normalizeNumberPart(match.groupValues[2])?.takeIf { n -> n.all { it.isDigit() } } ?: continue
+            return CardReading(match.groupValues[1], number, null)
         }
         return null
     }
@@ -229,7 +283,8 @@ object CardTextParser {
      * A line that is just a 4–6 digit number, e.g. "2573" for 25/73 (OCR lost the slash).
      * Taken only when exactly one split gives a plausible number and total.
      */
-    private fun readNumberWithoutSlash(tokens: List<String>): CardReading? {
+    private fun readNumberWithoutSlash(tokens: List<String>, sets: KnownSets?): CardReading? {
+        val knownTotals = sets?.totals.orEmpty()
         val digits = tokens.filter { token -> token.any { it.isDigit() } }
         if (digits.size != 1 || tokens.any { it.length > 2 && it != digits[0] }) return null
         val text = digits[0]
@@ -239,7 +294,7 @@ object CardTextParser {
             val total = text.drop(at)
             val totalValue = total.toInt()
             val plausible = total.length in 2..3 && !total.startsWith("0") && totalValue <= MAX_TOTAL &&
-                number.toInt() in 1..totalValue * 2
+                number.toInt() in 1..totalValue * 2 && (knownTotals.isEmpty() || totalValue in knownTotals)
             if (plausible) CardReading(null, number, total) else null
         }
         return splits.singleOrNull()
@@ -264,6 +319,29 @@ object CardTextParser {
         return "$fixedNumber/$total"
     }
 
+    /** "ETG11AG30" → "TG11/TG30": the slash of a Trainer Gallery number read as a letter. */
+    internal fun fixGalleryWithoutSlash(token: String): String {
+        if ('/' in token) return token
+        val match = GALLERY_WITHOUT_SLASH.find(token) ?: return token
+        val number = normalizeNumberPart(match.groupValues[1]) ?: return token
+        val total = normalizeNumberPart(match.groupValues[2]) ?: return token
+        return "TG$number/TG$total"
+    }
+
+    /**
+     * [token] as one of the [known] codes, also with one stray character glued before or after it
+     * ("GSVP", "JMEP": the regulation mark; then also returned). Null if it is none of them.
+     */
+    internal fun snapCode(token: String, known: Set<String>): Pair<String, Char?>? {
+        if (token in known) return token to null
+        if (token.length < 3) return null
+        val withoutFirst = token.drop(1)
+        if (withoutFirst in known) return withoutFirst to token.first().takeIf { REGULATION_MARK.matches(it.toString()) }
+        val withoutLast = token.dropLast(1)
+        if (withoutLast in known) return withoutLast to null
+        return null
+    }
+
     internal fun isTruncated(number: String, total: String): Boolean {
         if (number.any { it.isLetter() } || total.any { it.isLetter() }) return false
         return number.length < total.length
@@ -272,12 +350,17 @@ object CardTextParser {
     private fun isSetCode(token: String) =
         SET_CODE.matches(token) && token.any { it.isLetter() } && token !in NOT_SET_CODES
 
-    /** In "[mark] CODE EN" returns CODE (and the mark); the code must be directly before "EN". */
-    private fun codeBeforeEn(tokens: List<String>): Pair<String, Char?>? {
+    /**
+     * In "[mark] CODE EN" returns CODE (and the mark); the code must be directly before "EN".
+     * With [sets], only known codes count (else "When" read as "WH EN" would be a code).
+     */
+    private fun codeBeforeEn(tokens: List<String>, sets: KnownSets? = null): Pair<String, Char?>? {
         val en = tokens.lastIndexOf("EN")
         if (en < 1) return null
-        val code = tokens[en - 1].takeIf { isSetCode(it) } ?: return null
-        val mark = tokens.getOrNull(en - 2)?.takeIf { REGULATION_MARK.matches(it) }?.first()
+        val raw = tokens[en - 1].takeIf { isSetCode(it) } ?: return null
+        val known = sets?.codes?.takeIf { it.isNotEmpty() }
+        val (code, gluedMark) = if (known == null) raw to null else snapCode(raw, known + PROMO_CODES) ?: return null
+        val mark = gluedMark ?: tokens.getOrNull(en - 2)?.takeIf { REGULATION_MARK.matches(it) }?.first()
         return code to mark
     }
 
@@ -285,11 +368,12 @@ object CardTextParser {
     private fun nearestCodeBeforeEn(
         line: OcrLine,
         allLines: List<Pair<OcrLine, List<String>>>,
+        sets: KnownSets?,
     ): Pair<String, Char?>? {
         val maxDistance = (line.height * 3).coerceAtLeast(30)
         return allLines
             .filter { (other, _) -> other !== line && abs(other.top - line.top) <= maxDistance }
-            .mapNotNull { (other, tokens) -> codeBeforeEn(tokens)?.let { abs(other.top - line.top) to it } }
+            .mapNotNull { (other, tokens) -> codeBeforeEn(tokens, sets)?.let { abs(other.top - line.top) to it } }
             .minByOrNull { it.first }
             ?.second
     }
@@ -298,10 +382,10 @@ object CardTextParser {
      * The set code and name of a card whose number could not be read at all (too small or blurred):
      * a "CODE EN" anywhere, or a promo code ("MEP", "SVP"). Null without both a code and a name.
      */
-    fun codeAndName(lines: List<OcrLine>, names: PokemonNameFinder? = null): CardReading? {
+    fun codeAndName(lines: List<OcrLine>, names: PokemonNameFinder? = null, sets: KnownSets? = null): CardReading? {
         if (lines.isEmpty()) return null
         val tokenized = lines.map { tokenize(it.text) }
-        val code = tokenized.firstNotNullOfOrNull { codeBeforeEn(it)?.first }
+        val code = tokenized.firstNotNullOfOrNull { codeBeforeEn(it, sets)?.first }
             ?: tokenized.firstNotNullOfOrNull { tokens -> tokens.firstNotNullOfOrNull { PROMO_CODE.matchEntire(it)?.groupValues?.get(1) } }
             ?: return null
         val name = findName(lines, names) ?: return null
@@ -314,7 +398,8 @@ object CardTextParser {
         val top = lines.minOf { it.top }
         val bottom = lines.maxOf { it.bottom }
         val limit = top + (bottom - top) * 0.25
-        val pokemonCard = lines.none { NOT_POKEMON_CARD.containsMatchIn(it.text.trim()) }
+        // Only short label lines: body text such as "Energy from 1 of your Pokémon..." is no label.
+        val pokemonCard = lines.none { it.text.trim().length <= MAX_LABEL_LENGTH && NOT_POKEMON_CARD.containsMatchIn(it.text.trim()) }
         val mustBePokemon = names != null && !names.isEmpty && pokemonCard
         return lines.asSequence()
             .filter { it.top <= limit }

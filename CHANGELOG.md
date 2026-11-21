@@ -6,6 +6,20 @@ Release notes shown in the app's update dialog are taken from the matching secti
 
 - Enable R8 code shrinking for a smaller APK.
 
+## 2.5.0
+
+Faster and more reliable card recognition (from the 2.4.0 debug log).
+- Trainer Gallery cards (TG11/TG30 etc.) are recognised as soon as the number is read: they have no printed set code, so none is waited for. Also when the slash is read as a letter ("ETG11AG30"). The same for cards whose copyright year is before 2023.
+- No more set codes made of ordinary words ("often" read as "OFT EN", "When" as "WH EN"): a code must be a real set code. This wrongly recognised a Bronzong as "Metal Transfer". A regulation mark glued to a promo code is dropped ("GSVP 167" → SVP 167, "JMEP 063" → MEP 063).
+- A Pokémon whose attack text starts with "Energy" is no longer taken for an Energy card (its ability name was taken as the card name).
+- SWSH promos are read when the zero is read as a letter O ("SWSHO98").
+- Older cards (1999 Wizards cards, Sun & Moon GX): the enlarged bottom strip now reaches down to the number below the flavour text or the GX rule.
+- A number whose slash was lost ("44108") is split only into a total that a real set has (44/108, not 44/104). The set totals come with the set symbols at build time.
+- New "Keresés név alapján: <name>" button on the camera screen: when the Pokémon's name is read for about 6 seconds but the number is not, it lists all cards with that name to pick from.
+- TCG Collector refusals: after a request is refused twice in a row, the app pauses its TCG Collector requests for a minute instead of sending more (which would prolong the block). Opening TCG Collector in the app ends the pause.
+- Sealed catalog: a price refresh without internet stops at the first product with a note, instead of failing every product. Pressing the button again continues where it stopped.
+- Debug mode: each slow recognition entry also shows how many frames were read, how many gave a number and the average time per frame.
+
 ## 2.4.0
 
 All my cards of one Pokémon.

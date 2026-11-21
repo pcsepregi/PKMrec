@@ -19,6 +19,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,6 +37,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import me.csepregi.pkmrec.R
 import me.csepregi.pkmrec.tcg.Tcg
+import me.csepregi.pkmrec.tcg.TcgClient
 import me.csepregi.pkmrec.tcg.TcgSession
 import me.csepregi.pkmrec.tcg.TcgUser
 
@@ -61,6 +63,9 @@ fun LoginScreen(onDone: () -> Unit) {
     var loading by remember { mutableStateOf(true) }
     var webView by remember { mutableStateOf<WebView?>(null) }
     var finished by remember { mutableStateOf(false) }
+
+    // Opening TCG Collector here is how a refused app gets through again: no pause after it.
+    DisposableEffect(Unit) { onDispose { TcgClient.clearBlock() } }
 
     BackHandler {
         val view = webView

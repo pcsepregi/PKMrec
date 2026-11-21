@@ -143,7 +143,8 @@ fun SealedCatalogScreen(onBack: () -> Unit, onOpenItem: (Int) -> Unit) {
                 OutlinedButton(onClick = { SealedPrices.cancel() }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.sealed_refresh_cancel)) }
             } else {
                 Button(
-                    onClick = { SealedPrices.refreshAll(context) },
+                    // After a stop for lack of internet, the round continues where it stopped.
+                    onClick = { SealedPrices.refreshAll(context, resume = p?.offline == true) },
                     enabled = items.any { it.count > 0 },
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text(stringResource(R.string.sealed_refresh_all)) }
@@ -152,6 +153,8 @@ fun SealedCatalogScreen(onBack: () -> Unit, onOpenItem: (Int) -> Unit) {
                     OutlinedButton(onClick = { checkUrl = p.challengeUrl }, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.cardmarket_challenge_open))
                     }
+                } else if (p?.offline == true) {
+                    Hint(stringResource(R.string.sealed_refresh_offline, p.done, p.total))
                 } else if (p != null && p.failed > 0) {
                     Hint(stringResource(R.string.sealed_refresh_failed, p.failed))
                 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Downloads the symbols of all English Pokémon TCG sets from pokemontcg.io into the app's assets.
 
-Writes <out>/index.tsv (id, set code, name per line) and <out>/<id>.png (greyscale with alpha,
+Writes <out>/index.tsv (id, set code, name, printed total per line) and <out>/<id>.png (greyscale with alpha,
 64 px tall when Pillow is available). The app compares these with the symbol printed on a card.
 
 A copy of the symbols is kept in git (refreshed by the "Set symbols" workflow). Fresh downloads
@@ -63,7 +63,8 @@ def fetch(out_dir, card_set):
     with open(os.path.join(out_dir, set_id + ".png"), "wb") as f:
         f.write(data)
     name = " ".join(card_set["name"].split())
-    return "\t".join([set_id, (card_set.get("ptcgoCode") or "").strip(), name])
+    total = card_set.get("printedTotal")
+    return "\t".join([set_id, (card_set.get("ptcgoCode") or "").strip(), name, str(total) if isinstance(total, int) else ""])
 
 
 def read_index(out_dir):

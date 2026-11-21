@@ -161,6 +161,8 @@ class LookupViewModel(app: Application) : AndroidViewModel(app) {
             val code = r.setCode
             val outcome = if (r.isNameOnly && name != null && code != null) {
                 CardLookup.lookupByNameInSet(getApplication(), name, code)
+            } else if (r.isNameOnly && name != null) {
+                CardLookup.lookupByNameOnly(getApplication(), name)
             } else {
                 checkedByName(CardLookup.lookup(getApplication(), r), name, code)
             }
