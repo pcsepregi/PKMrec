@@ -165,7 +165,23 @@ data class CardmarketPage(
     val sample: String,
     /** The product picture (a product-images link, else og:image), if the page has one. */
     val imageUrl: String? = null,
+    /** document.readyState when the page was read: "loading", "interactive" or "complete". */
+    val readyState: String = "complete",
+    /** The document had no title and no content: a blank page, or one whose load had not started. */
+    val blank: Boolean = false,
 ) {
+    /**
+     * Whether the page can be read: its HTML is fully parsed and it is not an empty document.
+     * Pages read too early (an empty document in 40–100 ms) were taken for products without
+     * offers and stored as "no price" (2.5.0).
+     */
+    val isReadable: Boolean
+        get() = !blank && readyState != "loading" && !url.startsWith("about:")
+
+    /** Short description for the error log when a page did not load. */
+    val state: String
+        get() = "readyState=$readyState blank=$blank url=$url title=\"$title\" rows=$rowCount"
+
     /** Product links on a search page, without duplicates and language switch links. */
     val productLinks: List<ProductLink>
         get() = links.filter { Cardmarket.isProductPage(it.href) && it.href.startsWith("/en/") }.distinctBy { it.href }
@@ -207,6 +223,8 @@ data class CardmarketPage(
                 },
                 sample = str("sample").orEmpty(),
                 imageUrl = str("image")?.takeIf { it.startsWith("https://") },
+                readyState = str("ready") ?: "complete",
+                blank = str("blank") == "true",
             )
         }.getOrNull()
 
@@ -270,11 +288,13 @@ const val CARDMARKET_EXTRACT_JS = """
     if (og) image = og.getAttribute('content') || '';
   }
   if (image && image.indexOf('//') === 0) image = 'https:' + image;
+  var blank = !title && !txt(h1) && rows.length === 0 && as.length === 0;
   var sample = rows.length ? rows[0].outerHTML : (document.body ? document.body.innerHTML : '');
   return JSON.stringify({
     url: location.href, title: title, challenge: challenge ? 'true' : 'false',
     idProduct: idm ? parseInt(idm[1], 10) : null, productName: txt(h1),
-    rowCount: rows.length, offers: offers, links: links, sample: sample.substring(0, 2500), image: image
+    rowCount: rows.length, offers: offers, links: links, sample: sample.substring(0, 2500), image: image,
+    ready: document.readyState, blank: blank ? 'true' : 'false'
   });
 })();
 """

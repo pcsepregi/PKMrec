@@ -81,6 +81,22 @@ class CardmarketPriceTest {
     }
 
     @Test
+    fun `an empty or half-loaded page is not a product without offers`() {
+        fun script(json: String) = JsonPrimitive(json).toString()
+        val empty = CardmarketPage.fromScriptResult(script("""{"url":"https://www.cardmarket.com/en/Pokemon/Products?idProduct=1","title":"","challenge":"false","rowCount":0,"offers":[],"links":[],"ready":"complete","blank":"true"}"""))!!
+        assertTrue(!empty.isReadable)
+        val failed = CardmarketPrices.fromOffers(empty, false, "p")
+        assertTrue(failed is CardmarketResult.Failed)
+        val loading = CardmarketPage.fromScriptResult(script("""{"url":"https://www.cardmarket.com/x","title":"T","challenge":"false","rowCount":0,"offers":[],"links":[],"ready":"loading","blank":"false"}"""))!!
+        assertTrue(!loading.isReadable)
+        val ready = CardmarketPage.fromScriptResult(script("""{"url":"https://www.cardmarket.com/x","title":"T","challenge":"false","rowCount":0,"offers":[],"links":[],"ready":"interactive","blank":"false"}"""))!!
+        assertTrue(ready.isReadable)
+        assertEquals(CardmarketResult.NoOffers("p"), CardmarketPrices.fromOffers(ready, false, "p"))
+        val blankDocument = CardmarketPage("about:blank", "", false, null, null, 0, emptyList(), emptyList(), emptyList(), "")
+        assertTrue(!blankDocument.isReadable)
+    }
+
+    @Test
     fun `filter is applied to the product url`() {
         assertEquals(
             "https://www.cardmarket.com/en/Pokemon/Products/Singles/Obsidian-Flames/Lechonk-V2-OBF209?language=1&minCondition=4",

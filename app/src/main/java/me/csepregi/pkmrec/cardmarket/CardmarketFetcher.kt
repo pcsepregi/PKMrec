@@ -43,11 +43,20 @@ object CardmarketFetcher {
     private const val IMAGE_RETRIES = 10
     private const val IMAGE_RETRY_MS = 500L
 
+    /** While a page loads, it is read this often once its HTML is in, not only when every resource has loaded. */
+    private const val POLL_MS = 1_000L
+
+    /** A page that timed out is loaded once more before giving up. */
+    private const val PAGE_ATTEMPTS = 2
+
     private val main = Handler(Looper.getMainLooper())
     private val mutex = Mutex()
     private var webView: WebView? = null
 
     private const val BLANK = "about:blank"
+
+    /** Chromium errors that mean there is no connection at all. */
+    private val OFFLINE_ERRORS = listOf("ERR_INTERNET_DISCONNECTED", "ERR_NAME_NOT_RESOLVED", "ERR_ADDRESS_UNREACHABLE", "ERR_NETWORK_CHANGED")
 
     private val _challenge = MutableStateFlow(false)
 
@@ -55,18 +64,32 @@ object CardmarketFetcher {
     val challenge: StateFlow<Boolean> = _challenge.asStateFlow()
 
     suspend fun load(context: Context, url: String): CardmarketPage = mutex.withLock {
-        withContext(Dispatchers.Main) {
-            navigate(context.applicationContext, url, CARDMARKET_EXTRACT_JS) { result ->
-                val page = CardmarketPage.fromScriptResult(result)
-                when {
-                    page == null -> Step.Fail(CardmarketPageException("unreadable page $url"))
-                    // A Cloudflare check usually passes by itself and reloads the page: keep waiting.
-                    page.challenge -> Step.Challenge
-                    else -> Step.Done(page)
-                }
+        withContext(Dispatchers.Main) { loadWithRetry(context.applicationContext, url) }
+    }
+
+    private suspend fun loadWithRetry(context: Context, url: String): CardmarketPage {
+        repeat(PAGE_ATTEMPTS - 1) {
+            try {
+                return loadOnce(context, url)
+            } catch (e: SocketTimeoutException) {
+                // Loaded again below.
             }
         }
+        return loadOnce(context, url)
     }
+
+    private suspend fun loadOnce(context: Context, url: String): CardmarketPage =
+        navigate(context, url, CARDMARKET_EXTRACT_JS, pollMs = POLL_MS) { result ->
+            val page = CardmarketPage.fromScriptResult(result)
+            when {
+                page == null -> Step.Fail(CardmarketPageException("unreadable page $url"))
+                // A Cloudflare check usually passes by itself and reloads the page: keep waiting.
+                page.challenge -> Step.Challenge
+                // Read too early (still parsing, or the empty document before the page): wait for more.
+                !page.isReadable -> Step.Wait(page.state)
+                else -> Step.Done(page)
+            }
+        }
 
     /**
      * Downloads a picture by opening it in the WebView, with the same cookies as the pages, and
@@ -121,15 +144,25 @@ object CardmarketFetcher {
         data object Challenge : Step<Nothing>
         /** Not ready yet: run the script again shortly. */
         data object Retry : Step<Nothing>
+        /** The page is not loaded yet ([state] for the log): read again at the next poll or page finish. */
+        data class Wait(val state: String) : Step<Nothing>
     }
 
-    private suspend fun <T> navigate(context: Context, url: String, script: String, read: (String?) -> Step<T>): T =
+    /**
+     * Loads [url] and reads it with [script] when the page finishes loading; with [pollMs], also
+     * every [pollMs] once the new page has started (a page can show its offers long before a slow
+     * ad or tracker lets it "finish").
+     */
+    private suspend fun <T> navigate(context: Context, url: String, script: String, pollMs: Long = 0, read: (String?) -> Step<T>): T =
         suspendCancellableCoroutine { cont ->
             val view = view(context)
             val started = SystemClock.uptimeMillis()
             var challenged = false
             var retries = 0
             var done = false
+            /** The new page has started loading (not the blank page or the previous page). */
+            var pageStarted = false
+            var lastState = "not read"
 
             fun finish(result: Result<T>) {
                 if (done) return
@@ -137,9 +170,8 @@ object CardmarketFetcher {
                 _challenge.value = false
                 main.removeCallbacksAndMessages(view)
                 view.webViewClient = WebViewClient()
-                // The page read is not needed any more: unload it so its scripts stop, unless a
-                // Cloudflare check on it is waiting for the user, or someone is looking at it.
-                if (!challenged && !view.isShown) view.loadUrl(BLANK)
+                // The page stays loaded until the next one: loading a blank page after every read
+                // (2.3.0–2.5.0) got in the way of the next load, which was then read empty.
                 if (cont.isActive) result.fold({ cont.resume(it) }, { cont.resumeWithException(it) })
             }
 
@@ -151,7 +183,7 @@ object CardmarketFetcher {
                         return
                     }
                     view.stopLoading()
-                    finish(Result.failure(if (challenged) CardmarketChallengeException(url) else SocketTimeoutException("Cardmarket: $url")))
+                    finish(Result.failure(if (challenged) CardmarketChallengeException(url) else SocketTimeoutException("Cardmarket: $url (started=$pageStarted, last read: $lastState)")))
                 }
             }
 
@@ -167,28 +199,45 @@ object CardmarketFetcher {
                         Step.Retry -> if (++retries <= IMAGE_RETRIES) {
                             main.postAtTime({ if (!done) evaluate() }, view, SystemClock.uptimeMillis() + IMAGE_RETRY_MS)
                         }
+                        is Step.Wait -> lastState = step.state
                     }
                 }
             }
 
+            val poll = object : Runnable {
+                override fun run() {
+                    if (done) return
+                    if (pageStarted && !challenged) evaluate()
+                    main.postAtTime(this, view, SystemClock.uptimeMillis() + pollMs)
+                }
+            }
+
             view.webViewClient = object : WebViewClient() {
+                override fun onPageStarted(view: WebView, pageUrl: String?, favicon: android.graphics.Bitmap?) {
+                    if (pageUrl != null && pageUrl != BLANK) pageStarted = true
+                }
+
                 override fun onPageFinished(view: WebView, pageUrl: String?) {
-                    // The blank page loaded after the previous read may finish after this load started.
+                    // A blank page loaded when the app went to the background may finish after this load started.
                     if (pageUrl == BLANK) return
                     evaluate()
                 }
 
                 override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
                     if (!request.isForMainFrame) return
-                    val e = when (error.errorCode) {
-                        WebViewClient.ERROR_HOST_LOOKUP, WebViewClient.ERROR_CONNECT -> UnknownHostException("Cardmarket: ${error.description}")
-                        WebViewClient.ERROR_TIMEOUT -> SocketTimeoutException("Cardmarket: ${error.description}")
-                        else -> IOException("Cardmarket: ${error.description}")
+                    val description = error.description?.toString().orEmpty()
+                    val e = when {
+                        // Only these mean the phone is offline: a refused connection must not stop a price round.
+                        error.errorCode == WebViewClient.ERROR_HOST_LOOKUP || OFFLINE_ERRORS.any { it in description } ->
+                            UnknownHostException("Cardmarket: $description")
+                        error.errorCode == WebViewClient.ERROR_TIMEOUT -> SocketTimeoutException("Cardmarket: $description")
+                        else -> IOException("Cardmarket: $description (${error.errorCode})")
                     }
                     finish(Result.failure(e))
                 }
             }
             main.postAtTime(timeout, view, SystemClock.uptimeMillis() + TIMEOUT_MS)
+            if (pollMs > 0) main.postAtTime(poll, view, SystemClock.uptimeMillis() + pollMs)
             view.loadUrl(url)
             cont.invokeOnCancellation {
                 main.post {

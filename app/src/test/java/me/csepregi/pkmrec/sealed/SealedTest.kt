@@ -131,6 +131,16 @@ class SealedTest {
     }
 
     @Test
+    fun `the trend skips a no-offers price in between`() {
+        val item = SealedItem(
+            1, "ETB", count = 1,
+            price = price(60.0, 3),
+            previousPrices = listOf(price(0.0, 2, SealedPrice.KIND_NONE), price(50.0, 1)),
+        )
+        assertEquals(PriceTrend.UP, item.trend)
+    }
+
+    @Test
     fun `the trend compares the euro price with the previous one, 1 euro either way is unchanged`() {
         fun trend(before: Double?, now: Double?): PriceTrend? = SealedItem(
             1, "ETB", count = 1,

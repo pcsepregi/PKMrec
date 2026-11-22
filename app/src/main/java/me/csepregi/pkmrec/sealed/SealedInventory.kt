@@ -56,11 +56,14 @@ data class SealedItem(
     /** Why the last picture download failed, shown on the product screen. */
     val imageError: String? = null,
 ) {
-    /** The euro price of one piece now against the previous price; null unless both had offers. */
+    /**
+     * The euro price of one piece now against the last earlier price with offers; null unless both
+     * had offers. A "no offers" in between is skipped (2.3.0–2.5.0 stored empty pages as one).
+     */
     val trend: PriceTrend?
         get() {
             val now = price?.value ?: return null
-            val before = previousPrices.firstOrNull()?.value ?: return null
+            val before = previousPrices.firstNotNullOfOrNull { it.value } ?: return null
             return when {
                 now - before > TREND_THRESHOLD_EUR -> PriceTrend.UP
                 before - now > TREND_THRESHOLD_EUR -> PriceTrend.DOWN

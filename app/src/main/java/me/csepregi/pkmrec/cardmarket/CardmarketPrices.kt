@@ -123,6 +123,8 @@ object CardmarketPrices {
 
     /** Pali's rule on a product page: ≥ 3 offers → average, 1–2 → cheapest as a guide, none → no offers. */
     fun fromOffers(page: CardmarketPage, reverseHolo: Boolean, productUrl: String): CardmarketResult {
+        // An empty document is not a product without offers: never store it as "no price".
+        if (!page.isReadable) return CardmarketResult.Failed(CardmarketResult.Kind.OTHER, "page not loaded: ${page.state}")
         if (page.rowCount > 0 && page.offers.all { it.price == null }) {
             return CardmarketResult.Failed(CardmarketResult.Kind.SITE_CHANGED, "offer rows without price on ${page.url}")
         }

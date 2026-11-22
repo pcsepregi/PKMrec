@@ -6,6 +6,15 @@ Release notes shown in the app's update dialog are taken from the matching secti
 
 - Enable R8 code shrinking for a smaller APK.
 
+## 2.5.1
+
+Sealed catalog prices download again.
+- Since 2.3.0 the hidden Cardmarket page was blanked after every read, and the next page was then often read while still empty. Sealed products got "nincs ár" (no offers) instead of a price. The page now stays loaded until the next one, and an empty or half-loaded page is never read: the app waits for the real page.
+- An empty page is never stored as "no offers"; it counts as a failed refresh (the old price stays) and goes to the error log.
+- A page is read as soon as its HTML is in, not only when every ad and tracker has loaded; a page that still times out is loaded once more. The error log shows how far the page got.
+- A refused Cardmarket connection no longer counts as "no internet" (which stopped the sealed refresh at the first product).
+- The price trend compares with the last earlier price that had offers.
+
 ## 2.5.0
 
 Faster and more reliable card recognition (from the 2.4.0 debug log).
