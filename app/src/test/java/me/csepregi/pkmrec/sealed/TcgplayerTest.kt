@@ -6,6 +6,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
 class TcgplayerTest {
 
@@ -75,6 +76,17 @@ class TcgplayerTest {
         assertEquals(listOf("team", "rocket", "tin"), TcgplayerMatcher.words("The Team Rocket's Tins"))
         assertEquals(listOf("1", "pack", "blister"), TcgplayerMatcher.words("Single Pack Blister"))
         assertEquals(listOf("heroe", "glass"), TcgplayerMatcher.words("Heroes Glass"))
+    }
+
+    @Test
+    fun `the bundled lists pair real products`() {
+        val bundled = TcgplayerCatalog.parse(File("src/main/assets/tcgplayer_sealed.tsv").readText())
+        assertTrue(bundled.size >= TcgplayerCatalog.MIN_COUNT)
+        val cardmarket = SealedCatalog.parse(File("src/main/assets/sealed_products.tsv").readText()).associateBy { it.id }
+        fun pair(cardmarketId: Int) = cardmarket.getValue(cardmarketId).let { TcgplayerMatcher.autoMatch(it.name, it.set, bundled)?.id }
+        assertEquals(668496, pair(860574)) // Ascended Heroes Elite Trainer Box
+        assertEquals(668531, pair(860568)) // Ascended Heroes: Pikachu Mini Tin → Mini Tin [Pikachu & Tepig]
+        assertEquals(649200, pair(832232)) // Team Rocket's Mewtwo ex Tin → International Version
     }
 
     @Test
