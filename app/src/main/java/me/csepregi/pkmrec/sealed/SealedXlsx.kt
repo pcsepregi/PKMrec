@@ -11,7 +11,7 @@ import kotlin.math.roundToLong
 
 /**
  * The Sealed catalog as an Excel workbook (.xlsx), for reading only: one row per owned product
- * with its picture, purchase price, Cardmarket price and value, and a total row. Written by hand
+ * with its picture, purchase price, price (TCGplayer or Cardmarket) and value, and a total row. Written by hand
  * (an .xlsx is a zip of a few XML files), so no spreadsheet library is needed.
  */
 object SealedXlsx {
@@ -29,10 +29,10 @@ object SealedXlsx {
     private val HEADERS = listOf(
         "Kép", "Név", "Kiadás", "Típus", "Darab",
         "Beszerzési ár/db (Ft)", "Beszerzés összesen (Ft)",
-        "Cardmarket ár/db (€)", "Cardmarket ár/db (Ft)", "Érték összesen (Ft)", "Különbség (Ft)",
-        "Ár", "Ár dátuma", "Cardmarket",
+        "Ár/db (€)", "Ár/db (Ft)", "Érték összesen (Ft)", "Különbség (Ft)",
+        "Ár", "Ár dátuma", "Termékoldal", "Ár/db ($)", "Ár forrása",
     )
-    private val WIDTHS = listOf(13, 48, 22, 18, 8, 14, 14, 14, 14, 14, 14, 16, 12, 14)
+    private val WIDTHS = listOf(13, 48, 22, 18, 8, 14, 14, 14, 14, 14, 14, 16, 12, 14, 12, 12)
 
     private const val STYLE_HEADER = 1
     private const val STYLE_FORINT = 2
@@ -40,6 +40,7 @@ object SealedXlsx {
     private const val STYLE_TOTAL = 4
     private const val STYLE_TOTAL_FORINT = 5
     private const val STYLE_PLAIN = 6
+    private const val STYLE_DOLLAR = 7
 
     private val DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
@@ -86,7 +87,7 @@ object SealedXlsx {
                     ?: "Árfolyam: még nincs letöltve, a forint oszlopok üresek.",
             ),
         )
-        rows += listOf(Cell.Empty, Cell.Text("A különbség csak azokat a termékeket számolja, amelyeknek beszerzési ára és Cardmarket ára is van."))
+        rows += listOf(Cell.Empty, Cell.Text("A különbség csak azokat a termékeket számolja, amelyeknek beszerzési ára és aktuális ára is van. A TCGplayer árak dollárból vannak átszámolva (EKB árfolyam a lekérés napján)."))
 
         val files = mutableListOf(
             "[Content_Types].xml" to (if (pictures.isEmpty()) CONTENT_TYPES else CONTENT_TYPES_WITH_PICTURES).toByteArray(),
@@ -132,7 +133,8 @@ object SealedXlsx {
     }
 
     private fun row(item: SealedItem, rate: Double?, zone: ZoneId): List<Cell> {
-        val eur = item.price?.value
+        val price = item.price
+        val eur = price?.value
         val purchase = item.purchaseHuf
         val unitHuf = if (eur != null && rate != null) (eur * rate).roundToLong() else null
         fun forints(value: Long?) = value?.let { Cell.Number(it.toDouble(), STYLE_FORINT) } ?: Cell.Empty
@@ -149,15 +151,24 @@ object SealedXlsx {
             forints(unitHuf?.let { it * item.count }),
             forints(if (unitHuf != null && purchase != null) (unitHuf - purchase) * item.count else null),
             Cell.Text(
-                when (item.price?.kind) {
-                    null -> "nincs lekérve"
-                    SealedPrice.KIND_PRICE -> "átlag"
-                    SealedPrice.KIND_FEW -> "kevés ajánlat"
+                when {
+                    price == null -> "nincs lekérve"
+                    price.isTcgplayer -> if (price.kind == SealedPrice.KIND_NONE) "nincs market price" else "market price"
+                    price.kind == SealedPrice.KIND_PRICE -> "átlag"
+                    price.kind == SealedPrice.KIND_FEW -> "kevés ajánlat"
                     else -> "nincs ajánlat"
                 },
             ),
             item.price?.let { Cell.Text(Instant.ofEpochMilli(it.time).atZone(zone).format(DATE)) } ?: Cell.Empty,
-            item.productUrl?.let { Cell.Link(it, "Megnyitás") } ?: Cell.Empty,
+            (item.tcgplayerId?.takeIf { item.tcgplayerPaired }?.let { TcgplayerCatalog.productUrl(it) } ?: item.productUrl)?.let { Cell.Link(it, "Megnyitás") } ?: Cell.Empty,
+            price?.usd?.takeIf { price.isTcgplayer && price.kind != SealedPrice.KIND_NONE }?.let { Cell.Number(it, STYLE_DOLLAR) } ?: Cell.Empty,
+            Cell.Text(
+                when {
+                    price == null -> ""
+                    price.isTcgplayer -> "TCGplayer"
+                    else -> "Cardmarket"
+                },
+            ),
         )
     }
 
@@ -273,15 +284,15 @@ object SealedXlsx {
 <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
 </Relationships>"""
 
-    /** Styles: 0 default, 1 bold header, 2 forints, 3 euros, 4 bold, 5 bold forints, 6 plain; all but the header centred vertically. */
+    /** Styles: 0 default, 1 bold header, 2 forints, 3 euros, 4 bold, 5 bold forints, 6 plain, 7 dollars; all but the header centred vertically. */
     private const val STYLES = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-<numFmts count="2"><numFmt numFmtId="164" formatCode="#,##0 &quot;Ft&quot;"/><numFmt numFmtId="165" formatCode="#,##0.00 &quot;€&quot;"/></numFmts>
+<numFmts count="3"><numFmt numFmtId="164" formatCode="#,##0 &quot;Ft&quot;"/><numFmt numFmtId="165" formatCode="#,##0.00 &quot;€&quot;"/><numFmt numFmtId="166" formatCode="#,##0.00 &quot;$&quot;"/></numFmts>
 <fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>
 <fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>
 <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
 <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-<cellXfs count="7">
+<cellXfs count="8">
 <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
 <xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf>
 <xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment vertical="center"/></xf>
@@ -289,6 +300,7 @@ object SealedXlsx {
 <xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="center"/></xf>
 <xf numFmtId="164" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyNumberFormat="1" applyAlignment="1"><alignment vertical="center"/></xf>
 <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="center"/></xf>
+<xf numFmtId="166" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment vertical="center"/></xf>
 </cellXfs>
 <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>"""

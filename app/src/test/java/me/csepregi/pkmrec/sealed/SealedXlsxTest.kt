@@ -41,7 +41,7 @@ class SealedXlsxTest {
         assertTrue(sheet.contains("""<c r="E4" s="4"><v>3</v></c>"""))
         assertTrue(sheet.contains("""<c r="J4" s="5"><v>48000</v></c>"""))
         assertTrue(sheet.contains("1 € = 400,00 Ft (EKB, 2026-10-23)"))
-        assertTrue(sheet.contains("""<autoFilter ref="A1:N3"/>"""))
+        assertTrue(sheet.contains("""<autoFilter ref="A1:P3"/>"""))
     }
 
     @Test

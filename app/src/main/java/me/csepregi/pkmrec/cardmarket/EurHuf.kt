@@ -5,6 +5,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import me.csepregi.pkmrec.diagnostics.ErrorLog
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -15,6 +16,7 @@ import kotlin.math.roundToLong
 /**
  * EUR → HUF rate for showing Cardmarket prices in forints: the European Central Bank's daily
  * reference rate, downloaded on app start (at most every [REFRESH_MS]) and kept on the phone.
+ * The EUR → USD rate from the same file turns TCGplayer's dollar prices into euros.
  */
 object EurHuf {
 
@@ -23,18 +25,24 @@ object EurHuf {
     private const val PREFS = "eur_huf"
     private const val KEY_RATE = "rate"
     private const val KEY_DATE = "date"
+    private const val KEY_USD = "usd"
     private const val KEY_CHECKED = "checked"
     private const val REFRESH_MS = 6 * 60 * 60 * 1000L
     private const val STALE_DAYS = 7L
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    private val USD_RATE = Regex("""currency=['"]USD['"]\s+rate=['"]([\d.]+)['"]""")
     private val HUF_RATE = Regex("""currency=['"]HUF['"]\s+rate=['"]([\d.]+)['"]""")
     private val DATE = Regex("""time=['"](\d{4}-\d{2}-\d{2})['"]""")
 
     /** The last downloaded rate (forints per euro), or null before the first download. */
     fun rate(context: Context): Double? =
         prefs(context).getFloat(KEY_RATE, 0f).takeIf { it > 0f }?.toDouble()
+
+    /** Dollars for one euro from the last download, or null before the first download (or one before 2.6.0). */
+    fun usdRate(context: Context): Double? =
+        prefs(context).getFloat(KEY_USD, 0f).takeIf { it > 0f }?.toDouble()
 
     /** The ECB date of [rate] ("2026-10-23"), or null before the first download. */
     fun rateDate(context: Context): String? = prefs(context).getString(KEY_DATE, null)?.takeIf { it.isNotEmpty() }
@@ -48,24 +56,41 @@ object EurHuf {
     fun refresh(context: Context) {
         val appContext = context.applicationContext
         val checked = prefs(appContext).getLong(KEY_CHECKED, 0L)
-        if (rate(appContext) != null && System.currentTimeMillis() - checked < REFRESH_MS) return
+        if (rate(appContext) != null && usdRate(appContext) != null && System.currentTimeMillis() - checked < REFRESH_MS) return
         scope.launch {
             try {
-                val http = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(15, TimeUnit.SECONDS).build()
-                val body = http.newCall(Request.Builder().url(ECB_URL).build()).execute().use { response ->
-                    if (!response.isSuccessful) throw java.io.IOException("ECB rates: HTTP ${response.code}")
-                    response.body?.string().orEmpty()
-                }
-                val (rate, date) = parse(body) ?: throw java.io.IOException("ECB rates: no HUF rate")
-                prefs(appContext).edit()
-                    .putFloat(KEY_RATE, rate.toFloat())
-                    .putString(KEY_DATE, date)
-                    .putLong(KEY_CHECKED, System.currentTimeMillis())
-                    .apply()
+                download(appContext)
             } catch (e: Exception) {
                 ErrorLog.log("eur-huf rate", e)
             }
         }
+    }
+
+    /** Downloads the rates now unless the dollar rate is already known; true when it is known afterwards. */
+    suspend fun ensureUsd(context: Context): Boolean {
+        if (usdRate(context) != null) return true
+        return try {
+            withContext(Dispatchers.IO) { download(context.applicationContext) }
+            usdRate(context) != null
+        } catch (e: Exception) {
+            ErrorLog.log("eur-usd rate", e)
+            false
+        }
+    }
+
+    private fun download(appContext: Context) {
+        val http = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(15, TimeUnit.SECONDS).build()
+        val body = http.newCall(Request.Builder().url(ECB_URL).build()).execute().use { response ->
+            if (!response.isSuccessful) throw java.io.IOException("ECB rates: HTTP ${response.code}")
+            response.body?.string().orEmpty()
+        }
+        val (rate, date) = parse(body) ?: throw java.io.IOException("ECB rates: no HUF rate")
+        prefs(appContext).edit()
+            .putFloat(KEY_RATE, rate.toFloat())
+            .putFloat(KEY_USD, (parseUsd(body) ?: 0.0).toFloat())
+            .putString(KEY_DATE, date)
+            .putLong(KEY_CHECKED, System.currentTimeMillis())
+            .apply()
     }
 
     /** HUF rate and its date from the ECB daily XML. */
@@ -73,6 +98,9 @@ object EurHuf {
         val rate = HUF_RATE.find(xml)?.groupValues?.get(1)?.toDoubleOrNull() ?: return null
         return rate to DATE.find(xml)?.groupValues?.get(1).orEmpty()
     }
+
+    /** Dollars for one euro from the ECB daily XML. */
+    fun parseUsd(xml: String): Double? = USD_RATE.find(xml)?.groupValues?.get(1)?.toDoubleOrNull()
 
     /** "2 949 Ft": whole forints, non-breaking spaces between thousands and before "Ft". */
     fun formatHuf(euros: Double, rate: Double): String = formatForints((euros * rate).roundToLong())

@@ -75,6 +75,11 @@ import me.csepregi.pkmrec.sealed.PriceTrend
 import me.csepregi.pkmrec.sealed.SealedPrice
 import me.csepregi.pkmrec.sealed.SealedPrices
 import me.csepregi.pkmrec.sealed.SealedProduct
+import me.csepregi.pkmrec.sealed.SealedRefreshResult
+import me.csepregi.pkmrec.sealed.TcgplayerCatalog
+import me.csepregi.pkmrec.sealed.TcgplayerMatcher
+import me.csepregi.pkmrec.sealed.TcgplayerProduct
+import me.csepregi.pkmrec.sealed.formatUsd
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -224,7 +229,16 @@ fun SealedCatalogScreen(onBack: () -> Unit, onOpenItem: (Int) -> Unit) {
             onConfirm = { count, unitHuf ->
                 adding = null
                 query = ""
-                scope.launch { SealedInventory.addPurchase(context, product, count, unitHuf) }
+                scope.launch {
+                    SealedInventory.addPurchase(context, product, count, unitHuf)
+                    // A new product: pair it with TCGplayer and load its price and picture from there.
+                    // Cardmarket (20 s between pages) is left to "Árak frissítése".
+                    val added = SealedInventory.items.value.firstOrNull { it.id == product.id }
+                    if (added != null && added.price == null) {
+                        val paired = SealedPrices.pair(context, added)
+                        if (paired.tcgplayerPaired) SealedPrices.refresh(context, paired)
+                    }
+                }
             },
         )
     }
@@ -291,7 +305,7 @@ private fun OwnedRow(item: SealedItem, onClick: () -> Unit) {
                 Text(stringResource(R.string.sealed_count, item.count), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        item.price?.value?.let { CardmarketPrice.format(it) } ?: stringResource(R.string.sealed_no_price_short),
+                        item.price?.let { priceText(it) } ?: stringResource(R.string.sealed_no_price_short),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -318,8 +332,10 @@ fun SealedItemScreen(id: Int, onBack: () -> Unit) {
     var editingPurchase by remember { mutableStateOf(false) }
     var askRemove by remember { mutableStateOf(false) }
     var loadingPrice by remember { mutableStateOf(false) }
-    var lastResult by remember { mutableStateOf<CardmarketResult?>(null) }
+    var lastResult by remember { mutableStateOf<SealedRefreshResult?>(null) }
     var checkUrl by remember { mutableStateOf<String?>(null) }
+    var pairing by remember { mutableStateOf(false) }
+    var loadingImage by remember { mutableStateOf(false) }
 
     fun open(url: String) {
         runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
@@ -403,34 +419,47 @@ fun SealedItemScreen(id: Int, onBack: () -> Unit) {
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    val title = stringResource(R.string.cardmarket_title)
+                    val title = stringResource(if (item.tcgplayerPaired) R.string.tcgplayer_title else R.string.cardmarket_title)
                     if (loadingPrice) Text(stringResource(R.string.cardmarket_loading, title), style = MaterialTheme.typography.bodyLarge)
-                    else SealedPriceLines(item, title, rate)
+                    else SealedPriceLines(item, rate)
                     when (val r = lastResult) {
-                        is CardmarketResult.NotFound -> Text(stringResource(R.string.sealed_not_found), style = MaterialTheme.typography.bodyMedium)
-                        is CardmarketResult.Challenge -> {
-                            Text(stringResource(R.string.cardmarket_challenge, title), style = MaterialTheme.typography.bodyMedium)
-                            OutlinedButton(onClick = { checkUrl = r.url }) { Text(stringResource(R.string.cardmarket_challenge_open)) }
-                        }
-                        is CardmarketResult.Failed -> Text(
-                            when (r.kind) {
-                                CardmarketResult.Kind.NO_INTERNET -> stringResource(R.string.cardmarket_failed_no_internet)
-                                CardmarketResult.Kind.TIMEOUT -> stringResource(R.string.cardmarket_failed_timeout)
-                                CardmarketResult.Kind.SITE_CHANGED -> stringResource(R.string.cardmarket_failed_site_changed)
-                                CardmarketResult.Kind.OTHER -> stringResource(R.string.cardmarket_failed_other, r.detail)
-                            },
+                        is SealedRefreshResult.Tcgplayer -> if (r.usd == null) Hint(stringResource(R.string.tcgplayer_no_market_price))
+                        is SealedRefreshResult.TcgplayerFailed -> Text(
+                            if (r.offline) stringResource(R.string.cardmarket_failed_no_internet) else stringResource(R.string.tcgplayer_failed, r.detail),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.error,
                         )
-                        else -> {}
+                        is SealedRefreshResult.Cardmarket -> when (val c = r.result) {
+                            is CardmarketResult.NotFound -> Text(stringResource(R.string.sealed_not_found), style = MaterialTheme.typography.bodyMedium)
+                            is CardmarketResult.Challenge -> {
+                                Text(stringResource(R.string.cardmarket_challenge, title), style = MaterialTheme.typography.bodyMedium)
+                                OutlinedButton(onClick = { checkUrl = c.url }) { Text(stringResource(R.string.cardmarket_challenge_open)) }
+                            }
+                            is CardmarketResult.Failed -> Text(
+                                when (c.kind) {
+                                    CardmarketResult.Kind.NO_INTERNET -> stringResource(R.string.cardmarket_failed_no_internet)
+                                    CardmarketResult.Kind.TIMEOUT -> stringResource(R.string.cardmarket_failed_timeout)
+                                    CardmarketResult.Kind.SITE_CHANGED -> stringResource(R.string.cardmarket_failed_site_changed)
+                                    CardmarketResult.Kind.OTHER -> stringResource(R.string.cardmarket_failed_other, c.detail)
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                            else -> {}
+                        }
+                        null -> {}
                     }
                     Row {
                         TextButton(onClick = { loadPrice(item) }, enabled = !loadingPrice) { Text(stringResource(R.string.cardmarket_refresh)) }
-                        TextButton(onClick = {
-                            open(item.productUrl?.let { Cardmarket.englishOffersUrl(it) } ?: Cardmarket.productByIdUrl(item.id))
-                        }) { Text(stringResource(R.string.cardmarket_open)) }
+                        if (item.tcgplayerPaired) {
+                            TextButton(onClick = { open(TcgplayerCatalog.productUrl(item.tcgplayerId!!)) }) { Text(stringResource(R.string.tcgplayer_open)) }
+                        } else {
+                            TextButton(onClick = {
+                                open(item.productUrl?.let { Cardmarket.englishOffersUrl(it) } ?: Cardmarket.productByIdUrl(item.id))
+                            }) { Text(stringResource(R.string.cardmarket_open)) }
+                        }
                     }
-                    if (item.productUrl != null) {
+                    if (!item.tcgplayerPaired && item.productUrl != null) {
                         TextButton(onClick = {
                             scope.launch {
                                 SealedInventory.setPrice(context, item.id, item.price, null)
@@ -440,9 +469,50 @@ fun SealedItemScreen(id: Int, onBack: () -> Unit) {
                     }
                 }
             }
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(stringResource(R.string.tcgplayer_pairing), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    when {
+                        item.tcgplayerPaired -> Text(item.tcgplayerName ?: item.tcgplayerId.toString(), style = MaterialTheme.typography.bodyLarge)
+                        item.noTcgplayer -> Hint(stringResource(R.string.tcgplayer_not_there))
+                        else -> Hint(stringResource(R.string.tcgplayer_unpaired))
+                    }
+                    Row {
+                        TextButton(onClick = { pairing = true }) {
+                            Text(stringResource(if (item.tcgplayerPaired || item.noTcgplayer) R.string.sealed_edit else R.string.tcgplayer_pair))
+                        }
+                        if (item.tcgplayerPaired) {
+                            TextButton(onClick = {
+                                loadingImage = true
+                                scope.launch {
+                                    SealedPrices.replaceImageFromTcgplayer(context, item)
+                                    loadingImage = false
+                                }
+                            }, enabled = !loadingImage) { Text(stringResource(R.string.tcgplayer_image)) }
+                        }
+                    }
+                }
+            }
         }
     }
 
+    if (item != null && pairing) {
+        TcgplayerPickDialog(
+            item = item,
+            onDismiss = { pairing = false },
+            onPick = { product ->
+                pairing = false
+                scope.launch {
+                    SealedInventory.setTcgplayer(context, item.id, product, notThere = product == null)
+                    SealedInventory.items.value.firstOrNull { it.id == item.id }?.let { loadPrice(it) }
+                }
+            },
+        )
+    }
     if (item != null && buying) {
         PurchaseDialog(
             title = item.name,
@@ -490,31 +560,40 @@ fun SealedItemScreen(id: Int, onBack: () -> Unit) {
 
 private val PRICE_DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
+/** A price as shown: TCGplayer prices in dollars, Cardmarket prices in euros. */
+private fun priceText(price: SealedPrice): String =
+    if (price.isTcgplayer && price.usd != null) formatUsd(price.usd) else CardmarketPrice.format(price.eur)
+
 @Composable
-private fun SealedPriceLines(item: SealedItem, title: String, rate: Double?) {
+private fun SealedPriceLines(item: SealedItem, rate: Double?) {
     val price = item.price
     if (price == null) {
+        val title = stringResource(if (item.tcgplayerPaired) R.string.tcgplayer_title else R.string.cardmarket_title)
         Text(stringResource(R.string.sealed_price_never, title), style = MaterialTheme.typography.bodyLarge)
         return
     }
+    val title = stringResource(if (price.isTcgplayer) R.string.tcgplayer_title else R.string.cardmarket_title)
     val date = Instant.ofEpochMilli(price.time).atZone(ZoneId.systemDefault()).format(PRICE_DATE)
     val value = price.value
     if (value == null) {
-        Text(stringResource(R.string.sealed_no_offers, title), style = MaterialTheme.typography.bodyLarge)
+        Text(
+            if (price.isTcgplayer) stringResource(R.string.tcgplayer_no_price, title) else stringResource(R.string.sealed_no_offers, title),
+            style = MaterialTheme.typography.bodyLarge,
+        )
     } else {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("$title: ", style = MaterialTheme.typography.titleMedium)
-            Text(CardmarketPrice.format(value), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            if (rate != null) Text(" (≈ " + EurHuf.formatHuf(value, rate) + ")", style = MaterialTheme.typography.titleMedium)
+            Text(priceText(price), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            if (rate != null) Text(" (≈ " + EurHuf.formatHuf(value, rate) + ")", style = MaterialTheme.typography.titleMedium)
             item.trend?.let {
                 Spacer(Modifier.width(8.dp))
                 TrendMark(it, MaterialTheme.typography.titleLarge)
             }
         }
-        if (price.kind == SealedPrice.KIND_FEW) {
-            Hint(stringResource(R.string.cardmarket_few_offers, price.eligible))
-        } else {
-            Hint(stringResource(R.string.sealed_rule))
+        when {
+            price.isTcgplayer -> Hint(stringResource(R.string.tcgplayer_rule))
+            price.kind == SealedPrice.KIND_FEW -> Hint(stringResource(R.string.cardmarket_few_offers, price.eligible))
+            else -> Hint(stringResource(R.string.sealed_rule))
         }
     }
     Hint(stringResource(R.string.sealed_price_date, date))
@@ -523,11 +602,71 @@ private fun SealedPriceLines(item: SealedItem, title: String, rate: Double?) {
         item.previousPrices.forEach { old ->
             val oldDate = Instant.ofEpochMilli(old.time).atZone(ZoneId.systemDefault()).format(PRICE_DATE)
             val oldValue = old.value
+            val shop = stringResource(if (old.isTcgplayer) R.string.tcgplayer_short else R.string.cardmarket_short)
             Text(
-                "$oldDate: " + (oldValue?.let { CardmarketPrice.format(it) + (rate?.let { r -> " (≈\u00A0" + EurHuf.formatHuf(it, r) + ")" } ?: "") }
-                    ?: stringResource(R.string.sealed_previous_no_offers)),
+                "$oldDate: " + (oldValue?.let { priceText(old) + (rate?.let { r -> " (≈\u00A0" + EurHuf.formatHuf(it, r) + ")" } ?: "") }
+                    ?: stringResource(if (old.isTcgplayer) R.string.tcgplayer_previous_no_price else R.string.sealed_previous_no_offers)) + " · $shop",
                 style = MaterialTheme.typography.bodyMedium,
             )
+        }
+    }
+}
+
+/**
+ * Picks the TCGplayer product a Sealed catalog product is priced by: the best matches by name
+ * first, or a search; "Nincs a TCGplayeren" leaves it on Cardmarket. [onPick] gets null for that.
+ */
+@Composable
+private fun TcgplayerPickDialog(item: SealedItem, onDismiss: () -> Unit, onPick: (TcgplayerProduct?) -> Unit) {
+    val context = LocalContext.current
+    var products by remember { mutableStateOf<List<TcgplayerProduct>>(emptyList()) }
+    var best by remember { mutableStateOf<List<TcgplayerProduct>>(emptyList()) }
+    LaunchedEffect(item.id) {
+        products = withContext(Dispatchers.IO) { TcgplayerCatalog.all(context) }
+        best = withContext(Dispatchers.Default) { TcgplayerMatcher.rank(item.name, item.set, products) }
+    }
+    var query by rememberSaveable { mutableStateOf("") }
+    val shown = remember(query, products, best) {
+        if (query.isBlank()) best
+        else products.filter { SealedMatcher.matches(query, "${it.name} ${it.set}") }.sortedBy { it.name.length }.take(30)
+    }
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(stringResource(R.string.tcgplayer_pick_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(item.name, style = MaterialTheme.typography.bodyLarge)
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    label = { Text(stringResource(R.string.tcgplayer_pick_search)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (products.isEmpty()) Hint(stringResource(R.string.tcgplayer_pick_empty_list))
+                else if (shown.isEmpty()) Hint(stringResource(R.string.tcgplayer_pick_none))
+                shown.forEach { product ->
+                    Card(modifier = Modifier.fillMaxWidth().clickable { onPick(product) }) {
+                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                            Text(
+                                product.name,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = if (product.id == item.tcgplayerId) FontWeight.Bold else FontWeight.SemiBold,
+                            )
+                            Text(
+                                listOfNotNull(product.set.ifEmpty { null }, if (product.id == item.tcgplayerId) stringResource(R.string.tcgplayer_pick_current) else null).joinToString(" · "),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+                OutlinedButton(onClick = { onPick(null) }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.tcgplayer_not_there_button)) }
+                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text(stringResource(R.string.cancel)) }
+            }
         }
     }
 }

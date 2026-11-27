@@ -13,21 +13,32 @@ import kotlinx.serialization.json.Json
 import java.io.File
 import kotlin.math.roundToLong
 
-/** The last Cardmarket price of a product: [kind] is "price" (average), "few" (cheapest of 1–2 offers) or "none". */
+/**
+ * A price of a product. [source] is "cardmarket" or "tcgplayer". Cardmarket: [kind] is "price"
+ * (average), "few" (cheapest of 1–2 offers) or "none". TCGplayer: "price" (market price, [usd]
+ * dollars, turned into [eur] with that day's ECB rate) or "none" (never had a market price).
+ */
 @Serializable
 data class SealedPrice(
     val kind: String,
     val eur: Double = 0.0,
     val eligible: Int = 0,
     val time: Long,
+    val source: String = SOURCE_CARDMARKET,
+    val usd: Double? = null,
 ) {
     /** The euro value used for the totals, or null when there were no offers. */
     val value: Double? get() = eur.takeIf { kind != KIND_NONE }
+
+    val isTcgplayer: Boolean get() = source == SOURCE_TCGPLAYER
 
     companion object {
         const val KIND_PRICE = "price"
         const val KIND_FEW = "few"
         const val KIND_NONE = "none"
+
+        const val SOURCE_CARDMARKET = "cardmarket"
+        const val SOURCE_TCGPLAYER = "tcgplayer"
     }
 }
 
@@ -55,15 +66,26 @@ data class SealedItem(
     val imageFile: String? = null,
     /** Why the last picture download failed, shown on the product screen. */
     val imageError: String? = null,
+    /** The TCGplayer product the price comes from (see [TcgplayerCatalog]), once paired. */
+    val tcgplayerId: Int? = null,
+    /** Its TCGCSV group (set), whose prices file has its price. */
+    val tcgplayerGroupId: Int? = null,
+    /** Its TCGplayer name, shown on the product screen. */
+    val tcgplayerName: String? = null,
+    /** Set by hand: the product is not on TCGplayer, its price comes from Cardmarket. */
+    val noTcgplayer: Boolean = false,
 ) {
+    val tcgplayerPaired: Boolean get() = tcgplayerId != null && tcgplayerGroupId != null
+
     /**
-     * The euro price of one piece now against the last earlier price with offers; null unless both
-     * had offers. A "no offers" in between is skipped (2.3.0–2.5.0 stored empty pages as one).
+     * The euro price of one piece now against the last earlier price with offers from the same
+     * shop; null unless both had offers. A "no offers" in between is skipped (2.3.0–2.5.0 stored
+     * empty pages as one). Prices from the other shop are not compared: US and EU prices differ.
      */
     val trend: PriceTrend?
         get() {
             val now = price?.value ?: return null
-            val before = previousPrices.firstNotNullOfOrNull { it.value } ?: return null
+            val before = previousPrices.filter { it.source == price.source }.firstNotNullOfOrNull { it.value } ?: return null
             return when {
                 now - before > TREND_THRESHOLD_EUR -> PriceTrend.UP
                 before - now > TREND_THRESHOLD_EUR -> PriceTrend.DOWN
@@ -158,6 +180,12 @@ object SealedInventory {
     suspend fun setImage(context: Context, id: Int, imageFile: String?, imageError: String?) =
         update(context, id) { it.copy(imageFile = imageFile ?: it.imageFile, imageError = imageError) }
 
+    /** Pairs the product with a TCGplayer product; null = unpaired, [notThere] = not on TCGplayer (Cardmarket price). */
+    suspend fun setTcgplayer(context: Context, id: Int, product: TcgplayerProduct?, notThere: Boolean = false) =
+        update(context, id) {
+            it.copy(tcgplayerId = product?.id, tcgplayerGroupId = product?.groupId, tcgplayerName = product?.name, noTcgplayer = notThere && product == null)
+        }
+
     suspend fun remove(context: Context, id: Int) = change(context) { items -> items.filter { it.id != id } }
 
     fun exportJson(): String = json.encodeToString(InventoryFile.serializer(), InventoryFile(items = _items.value))
@@ -209,6 +237,10 @@ object SealedInventory {
                 productUrl = old.productUrl ?: item.productUrl,
                 imageUrl = old.imageUrl ?: item.imageUrl,
                 imageFile = old.imageFile ?: item.imageFile,
+                tcgplayerId = old.tcgplayerId ?: item.tcgplayerId,
+                tcgplayerGroupId = if (old.tcgplayerId != null) old.tcgplayerGroupId else item.tcgplayerGroupId,
+                tcgplayerName = if (old.tcgplayerId != null) old.tcgplayerName else item.tcgplayerName,
+                noTcgplayer = old.tcgplayerId == null && item.tcgplayerId == null && (old.noTcgplayer || item.noTcgplayer),
                 price = listOfNotNull(old.price, item.price).maxByOrNull { it.time },
                 previousPrices = mergedHistory(old, item),
             )

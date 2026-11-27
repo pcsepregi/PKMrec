@@ -6,6 +6,19 @@ Release notes shown in the app's update dialog are taken from the matching secti
 
 - Enable R8 code shrinking for a smaller APK.
 
+## 2.6.0
+
+Sealed catalog prices from TCGplayer (the price Collectr shows), Cardmarket only as a fallback.
+- Products are paired with their TCGplayer product automatically when the names clearly match (49 of the 54 products of the old starting list). Where TCGplayer has an "International Version" (e.g. the Team Rocket tins), that one is taken. The product screen shows the pairing; "Párosítás" / "Módosítás" picks it by hand from the best matches or a search, or marks the product "Nincs a TCGplayeren".
+- The price is the TCGplayer market price (US market) from TCGCSV, one download per set, so "Árak frissítése" is done in seconds. It is shown in dollars, and in forints with the ECB rates (dollars are turned into euros for the totals).
+- No market price on TCGplayer: the previous price stays; a product that never had one shows "nincs ár".
+- Products not on TCGplayer keep the Cardmarket price, now with 20 s between Cardmarket pages (was 8 s).
+- Pictures of paired products come from TCGplayer's image server (no WebView). Existing pictures stay; "Kép a TCGplayerről" replaces one.
+- New product added: it is paired and gets its TCGplayer price and picture right away.
+- The ↑/↓/= trend compares only prices from the same shop, so switching to TCGplayer gives no false jump.
+- Excel export: price columns renamed, new "Ár/db ($)" and "Ár forrása" columns; the link opens TCGplayer for paired products.
+- The TCGplayer product list is bundled and refreshed weekly by the "Sealed products" workflow; "Sealed lista frissítése" in settings downloads both lists.
+
 ## 2.5.1
 
 Sealed catalog prices download again.

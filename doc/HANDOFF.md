@@ -111,3 +111,11 @@ See `CHANGELOG.md` under "Unreleased": R8 shrinking (low value for a single user
 
 - More home-screen features (scan history, batch scanning).
 - Set-symbol recognition for old cards, automatic holo/reverse detection (only if the candidate/variant pickers turn out to be needed often).
+
+## Sealed prices from TCGplayer (2.6.0)
+
+- Collectr (Pali's first wish) has no public API, its terms forbid scraping, and its sealed price is the TCGplayer market price (same product ids). The app reads that price from TCGCSV (`tcgcsv.com/tcgplayer/3/<groupId>/prices`), free and without login.
+- `assets/tcgplayer_sealed.tsv` (productId, groupId, set, name; products without a card number, no code cards) is built by `.github/scripts/fetch-tcgplayer-sealed.py` in the "Sealed products" workflow, which now commits to the branch it runs on.
+- `TcgplayerMatcher` pairs a Cardmarket-named product: every Cardmarket word (plus set) must be in the TCGplayer name + set, score = coverage − 0.04 per extra name word, auto only with a 0.035 lead; "(International Version)" wins over its plain twin. Pairing is stored on `SealedItem` (`tcgplayerId`, `tcgplayerGroupId`, `tcgplayerName`, `noTcgplayer`).
+- `SealedPrice.source` is "cardmarket" or "tcgplayer"; TCGplayer prices keep `usd` and store `eur = usd / ECB USD rate`, so totals stay in euros. Cardmarket is only used for unpaired products, 20 s between pages.
+

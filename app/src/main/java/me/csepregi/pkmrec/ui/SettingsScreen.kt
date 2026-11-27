@@ -54,6 +54,7 @@ import me.csepregi.pkmrec.diagnostics.SlowScanLog
 import me.csepregi.pkmrec.pokedex.NameListRefreshResult
 import me.csepregi.pkmrec.pokedex.PokemonNames
 import me.csepregi.pkmrec.sealed.SealedCatalog
+import me.csepregi.pkmrec.sealed.TcgplayerCatalog
 import me.csepregi.pkmrec.sealed.SealedImages
 import me.csepregi.pkmrec.sealed.SealedInventory
 import me.csepregi.pkmrec.sealed.SealedListRefreshResult
@@ -355,10 +356,14 @@ private fun SealedSettings() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var count by remember { mutableIntStateOf(0) }
+    var tcgplayerCount by remember { mutableIntStateOf(0) }
     var refreshing by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var importText by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(Unit) { count = withContext(Dispatchers.IO) { SealedCatalog.all(context).size } }
+    LaunchedEffect(Unit) {
+        count = withContext(Dispatchers.IO) { SealedCatalog.all(context).size }
+        tcgplayerCount = withContext(Dispatchers.IO) { TcgplayerCatalog.all(context).size }
+    }
 
     val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -402,18 +407,21 @@ private fun SealedSettings() {
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    Text(stringResource(R.string.settings_sealed_count, count), style = MaterialTheme.typography.bodyLarge)
+    Text(stringResource(R.string.settings_sealed_count, count, tcgplayerCount), style = MaterialTheme.typography.bodyLarge)
     Button(
         onClick = {
             refreshing = true
             error = null
             scope.launch {
-                when (val result = SealedCatalog.refresh(context)) {
-                    is SealedListRefreshResult.Done -> {
-                        count = result.count
-                        Toast.makeText(context, context.getString(R.string.settings_sealed_refreshed, result.count), Toast.LENGTH_SHORT).show()
-                    }
-                    is SealedListRefreshResult.Error -> error = result.message
+                val cardmarket = SealedCatalog.refresh(context)
+                val tcgplayer = TcgplayerCatalog.refresh(context)
+                if (cardmarket is SealedListRefreshResult.Done) count = cardmarket.count
+                if (tcgplayer is SealedListRefreshResult.Done) tcgplayerCount = tcgplayer.count
+                val failure = listOf(cardmarket, tcgplayer).filterIsInstance<SealedListRefreshResult.Error>().firstOrNull()
+                if (failure != null) {
+                    error = failure.message
+                } else {
+                    Toast.makeText(context, context.getString(R.string.settings_sealed_refreshed, count, tcgplayerCount), Toast.LENGTH_SHORT).show()
                 }
                 refreshing = false
             }

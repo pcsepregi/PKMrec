@@ -9,12 +9,13 @@ import android.graphics.Paint
 import android.graphics.Rect
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import me.csepregi.pkmrec.cardmarket.CARDMARKET_IMAGE_SIZE
 import me.csepregi.pkmrec.cardmarket.CardmarketImage
 import java.io.ByteArrayOutputStream
 import java.io.File
 import kotlin.math.roundToInt
 
-/** Product pictures downloaded from Cardmarket, kept in the app's files (they are not in the export). */
+/** Product pictures downloaded from TCGplayer or Cardmarket, kept in the app's files (they are not in the export). */
 object SealedImages {
 
     private const val DIR = "sealed_images"
@@ -31,6 +32,25 @@ object SealedImages {
         File(dir, name).writeBytes(image.bytes)
         dir.listFiles { f -> f.name.startsWith("$id-") && f.name != name }?.forEach { it.delete() }
         name
+    }
+
+    /**
+     * Writes a downloaded picture (e.g. TCGplayer's JPEG), made at most [CARDMARKET_IMAGE_SIZE]
+     * pixels on its longest side, and returns its file name. Fails on bytes that are not a picture.
+     */
+    suspend fun saveScaled(context: Context, id: Int, bytes: ByteArray): String = withContext(Dispatchers.IO) {
+        val source = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: throw java.io.IOException("not a picture")
+        val scale = minOf(1.0, CARDMARKET_IMAGE_SIZE.toDouble() / maxOf(source.width, source.height))
+        val image = if (scale >= 1.0) {
+            source
+        } else {
+            Bitmap.createScaledBitmap(source, (source.width * scale).roundToInt().coerceAtLeast(1), (source.height * scale).roundToInt().coerceAtLeast(1), true)
+        }
+        val out = ByteArrayOutputStream()
+        image.compress(Bitmap.CompressFormat.JPEG, 88, out)
+        if (image !== source) image.recycle()
+        source.recycle()
+        save(context, id, CardmarketImage(out.toByteArray(), "jpg"))
     }
 
     /**

@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import me.csepregi.pkmrec.cardmarket.EurHuf
 import me.csepregi.pkmrec.cardmarket.Cardmarket
 import me.csepregi.pkmrec.cardmarket.CardmarketChallengeException
 import me.csepregi.pkmrec.cardmarket.CardmarketFetcher
@@ -37,18 +39,34 @@ data class SealedRefreshProgress(
     val offline: Boolean = false,
 )
 
+/** What a price refresh of one product gave, for the product screen. */
+sealed interface SealedRefreshResult {
+    /** TCGplayer prices were read: [usd] is the market price, null when it has none (the old price stays). */
+    data class Tcgplayer(val usd: Double?) : SealedRefreshResult
+
+    /** The TCGplayer prices could not be downloaded; [offline] = no internet connection. */
+    data class TcgplayerFailed(val detail: String, val offline: Boolean) : SealedRefreshResult
+
+    /** The product is not paired with TCGplayer: the Cardmarket result. */
+    data class Cardmarket(val result: CardmarketResult) : SealedRefreshResult
+}
+
 /**
- * Cardmarket prices of sealed products by Pali's rule: English offers, skip the 2 cheapest,
- * average the next 5 (no condition filter: the products are sealed). The product page is found
- * once through the name search and kept with the product.
+ * Prices of sealed products. A product paired with a TCGplayer product gets the TCGplayer market
+ * price from TCGCSV (one download per set, see [TcgplayerPrices]); pairing is automatic when the
+ * names clearly match (see [TcgplayerMatcher]) or chosen by hand. The others keep Pali's
+ * Cardmarket rule: English offers, skip the 2 cheapest, average the next 5 (no condition filter:
+ * the products are sealed). The Cardmarket product page is found once through the name search and
+ * kept with the product.
  */
 object SealedPrices {
 
     /**
      * Pause between two Cardmarket pages. Loaded back to back, Cloudflare took the refresh for a
-     * robot and asked for a check every two or three products.
+     * robot and asked for a check every two or three products; since 2.6.0 only products that
+     * are not on TCGplayer go to Cardmarket, so the pages can be further apart.
      */
-    private const val PAGE_GAP_MS = 8_000L
+    private const val PAGE_GAP_MS = 20_000L
 
     @Volatile private var lastPage = 0L
 
@@ -61,8 +79,76 @@ object SealedPrices {
     private val _progress = MutableStateFlow<SealedRefreshProgress?>(null)
     val progress: StateFlow<SealedRefreshProgress?> = _progress.asStateFlow()
 
-    /** Loads the price of one product and stores it; returns the result to show. */
-    suspend fun refresh(context: Context, item: SealedItem): CardmarketResult {
+    /** Loads the price of one product (pairing it with TCGplayer first if it can) and stores it; returns the result to show. */
+    suspend fun refresh(context: Context, item: SealedItem): SealedRefreshResult {
+        val current = pair(context, item)
+        return if (current.tcgplayerPaired) refreshTcgplayer(context, current, null)
+        else SealedRefreshResult.Cardmarket(refreshCardmarket(context, current))
+    }
+
+    /**
+     * Pairs an unpaired product with its TCGplayer product when the names clearly match; returns
+     * the product as it is now. Products marked "not on TCGplayer" are left alone.
+     */
+    suspend fun pair(context: Context, item: SealedItem): SealedItem {
+        if (item.tcgplayerPaired || item.noTcgplayer) return item
+        val products = withContext(Dispatchers.IO) { TcgplayerCatalog.all(context) }
+        val match = withContext(Dispatchers.Default) { TcgplayerMatcher.autoMatch(item.name, item.set, products) } ?: return item
+        SealedInventory.setTcgplayer(context, item.id, match)
+        return item.copy(tcgplayerId = match.id, tcgplayerGroupId = match.groupId, tcgplayerName = match.name, noTcgplayer = false)
+    }
+
+    /**
+     * The TCGplayer market price of a paired product. [groupPrices]: its set's prices, when already
+     * downloaded for several products. Without a market price the old price stays; a product that
+     * never had one is stored as "no price".
+     */
+    private suspend fun refreshTcgplayer(context: Context, item: SealedItem, groupPrices: Map<Int, Double>?): SealedRefreshResult {
+        val id = item.tcgplayerId ?: return SealedRefreshResult.TcgplayerFailed("not paired", offline = false)
+        val group = item.tcgplayerGroupId ?: return SealedRefreshResult.TcgplayerFailed("not paired", offline = false)
+        val prices = groupPrices ?: try {
+            TcgplayerPrices.group(group)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            ErrorLog.log("tcgplayer price", e, "${item.name} (${TcgplayerPrices.pricesUrl(group)})")
+            return SealedRefreshResult.TcgplayerFailed(e.message ?: e.javaClass.simpleName, TcgError.kindOf(e) == TcgErrorKind.NO_INTERNET)
+        }
+        val usd = prices[id]
+        if (usd != null) {
+            if (!EurHuf.ensureUsd(context)) return SealedRefreshResult.TcgplayerFailed("no EUR-USD rate yet", offline = false)
+            val price = toTcgplayerPrice(usd, EurHuf.usdRate(context)!!)
+            SealedInventory.setPrice(context, item.id, price, item.productUrl)
+        } else if (item.price == null) {
+            SealedInventory.setPrice(context, item.id, SealedPrice(SealedPrice.KIND_NONE, time = System.currentTimeMillis(), source = SealedPrice.SOURCE_TCGPLAYER), item.productUrl)
+        }
+        if (SealedImages.file(context, item) == null) downloadTcgplayerImage(context, item.id, id)
+        return SealedRefreshResult.Tcgplayer(usd)
+    }
+
+    internal fun toTcgplayerPrice(usd: Double, usdPerEur: Double, now: Long = System.currentTimeMillis()) =
+        SealedPrice(SealedPrice.KIND_PRICE, eur = usd / usdPerEur, time = now, source = SealedPrice.SOURCE_TCGPLAYER, usd = usd)
+
+    /** Replaces the product's picture with TCGplayer's; false when it could not be downloaded (the reason is stored). */
+    suspend fun replaceImageFromTcgplayer(context: Context, item: SealedItem): Boolean {
+        val id = item.tcgplayerId ?: return false
+        return downloadTcgplayerImage(context, item.id, id)
+    }
+
+    private suspend fun downloadTcgplayerImage(context: Context, itemId: Int, tcgplayerId: Int): Boolean = try {
+        val bytes = TcgplayerPrices.image(tcgplayerId)
+        SealedInventory.setImage(context, itemId, SealedImages.saveScaled(context, itemId, bytes), null)
+        true
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        ErrorLog.log("tcgplayer image", e, tcgplayerId.toString())
+        SealedInventory.setImage(context, itemId, null, e.message ?: e.javaClass.simpleName)
+        false
+    }
+
+    /** Loads the Cardmarket price of one product and stores it. */
+    private suspend fun refreshCardmarket(context: Context, item: SealedItem): CardmarketResult {
         val (result, imageUrl) = load(context, item)
         val productUrl = productUrlOf(result) ?: item.productUrl
         val price = toPrice(result)
@@ -105,7 +191,8 @@ object SealedPrices {
     }
 
     /**
-     * Refreshes every owned product one after the other; runs on even if the screen is left.
+     * Refreshes every owned product; runs on even if the screen is left. TCGplayer products come
+     * first (one download per set), then the others from Cardmarket one after the other.
      * [resume]: continue a round stopped by a Cloudflare check, skipping products it already priced.
      */
     fun refreshAll(context: Context, resume: Boolean = false) {
@@ -115,24 +202,50 @@ object SealedPrices {
         val since = roundStart
         job = scope.launch {
             val items = SealedInventory.items.value.filter { it.count > 0 && (it.price?.time ?: 0L) < since }
+            val total = items.size
+            var done = 0
             var failed = 0
-            _progress.value = SealedRefreshProgress(0, items.size, 0, running = true)
-            items.forEachIndexed { index, item ->
-                val result = refresh(appContext, item)
+            _progress.value = SealedRefreshProgress(0, total, 0, running = true)
+            val (tcgplayer, cardmarket) = items.map { pair(appContext, it) }.partition { it.tcgplayerPaired }
+
+            for ((group, groupItems) in tcgplayer.groupBy { it.tcgplayerGroupId!! }) {
+                val prices = try {
+                    TcgplayerPrices.group(group)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    ErrorLog.log("tcgplayer price", e, TcgplayerPrices.pricesUrl(group))
+                    if (TcgError.kindOf(e) == TcgErrorKind.NO_INTERNET) {
+                        _progress.value = SealedRefreshProgress(done, total, failed, running = false, offline = true)
+                        return@launch
+                    }
+                    null
+                }
+                for (item in groupItems) {
+                    val result = if (prices == null) null else refreshTcgplayer(appContext, item, prices)
+                    if (result !is SealedRefreshResult.Tcgplayer || result.usd == null) failed++
+                    done++
+                    _progress.value = SealedRefreshProgress(done, total, failed, running = true)
+                }
+            }
+
+            for (item in cardmarket) {
+                val result = refreshCardmarket(appContext, item)
                 if (toPrice(result) == null) failed++
-                _progress.value = SealedRefreshProgress(index + 1, items.size, failed, running = true)
+                done++
+                _progress.value = SealedRefreshProgress(done, total, failed, running = true)
                 // A Cloudflare check stops the round: every next page would ask for it too.
                 if (result is CardmarketResult.Challenge) {
-                    _progress.value = SealedRefreshProgress(index + 1, items.size, failed, running = false, challengeUrl = result.url)
+                    _progress.value = SealedRefreshProgress(done, total, failed, running = false, challengeUrl = result.url)
                     return@launch
                 }
-                // No connection: the next products would fail the same way, 8 s apart.
+                // No connection: the next products would fail the same way, 20 s apart.
                 if (result is CardmarketResult.Failed && result.kind == CardmarketResult.Kind.NO_INTERNET) {
-                    _progress.value = SealedRefreshProgress(index + 1, items.size, failed, running = false, offline = true)
+                    _progress.value = SealedRefreshProgress(done, total, failed, running = false, offline = true)
                     return@launch
                 }
             }
-            finish(items.size, items.size, failed)
+            finish(total, total, failed)
         }
     }
 
